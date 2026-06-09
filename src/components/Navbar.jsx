@@ -15,7 +15,6 @@ export default function Navbar() {
     { label: 'Qué hacemos', href: '#about' },
     { label: 'Soluciones', href: '#solutions' },
     { label: 'Por qué Uniwork', href: '#value' },
-    { label: 'Precios', href: '#pricing' },
     { label: 'Contacto', href: '#contact' },
   ]
 

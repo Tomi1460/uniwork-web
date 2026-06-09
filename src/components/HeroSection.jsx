@@ -20,19 +20,18 @@ export default function HeroSection() {
         {/* Badge */}
         <div className="hero__badge animate-fadeInUp delay-1">
           <span className="glow-dot"></span>
-          Disponible ahora en Android &amp; Web
+          Disponible ahora en Android
         </div>
 
         {/* Headline */}
         <h1 className="heading-xl hero__title animate-fadeInUp delay-2">
-          El trabajo del futuro,<br />
-          <span className="text-gradient">disponible hoy</span>
+          Resolvé problemas en el hogar de forma<br />
+          <span className="text-gradient">rápida y segura</span>
         </h1>
 
         {/* Sub */}
         <p className="hero__subtitle animate-fadeInUp delay-3">
-          Uniwork conecta empresas con trabajadores independientes. Publica proyectos, gestiona servicios, 
-          y colabora en tiempo real — desde tu teléfono o directamente desde la web.
+          Uniwork conecta personas con prestadores de oficios de confianza. Plomería, electricidad, peluquería y más. Transparente, sin intermediarios ocultos y con calificaciones verificadas.
         </p>
 
         {/* CTA Buttons */}
@@ -48,26 +47,15 @@ export default function HeroSection() {
             </svg>
             Descargar App
           </button>
-          <button
-            id="cta-webapp"
-            className="btn btn-secondary btn-lg"
-            onClick={() => scrollTo('#download')}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2"/>
-              <path d="M8 21h8M12 17v4"/>
-            </svg>
-            Usar desde la web
-          </button>
         </div>
 
         {/* Stats */}
         <div className="hero__stats animate-fadeInUp delay-5">
           {[
-            { value: '10K+', label: 'Usuarios activos' },
-            { value: '50K+', label: 'Servicios gestionados' },
-            { value: '98%', label: 'Satisfacción' },
+            { value: '100%', label: 'Confiable' },
             { value: '24/7', label: 'Disponibilidad' },
+            { value: '0', label: 'Costo inicial' },
+            { value: '+', label: 'Oportunidades' },
           ].map((stat) => (
             <div key={stat.label} className="hero__stat">
               <span className="hero__stat-value">{stat.value}</span>
@@ -84,12 +72,12 @@ export default function HeroSection() {
             <div className="mockup__header">
               <div className="mockup__avatar"></div>
               <div>
-                <div className="mockup__name">Hola, Carlos 👋</div>
-                <div className="mockup__sub">Tienes 3 nuevos trabajos</div>
+                <div className="mockup__name">Hola, Juan 👋</div>
+                <div className="mockup__sub">Nuevas solicitudes de clientes</div>
               </div>
             </div>
             <div className="mockup__cards">
-              {['Diseño UI/UX', 'Desarrollo Web', 'Consultoría'].map((job, i) => (
+              {['Plomería General', 'Instalación Eléctrica', 'Reparación de AA'].map((job, i) => (
                 <div key={i} className="mockup__job-card">
                   <div className="mockup__job-dot" style={{ background: i === 0 ? '#6c63ff' : i === 1 ? '#43e97b' : '#ff6584' }}></div>
                   <span>{job}</span>
@@ -99,7 +87,7 @@ export default function HeroSection() {
             </div>
             <div className="mockup__earnings">
               <span className="mockup__earnings-label">Ganancias este mes</span>
-              <span className="mockup__earnings-value text-gradient-green">$2,840</span>
+              <span className="mockup__earnings-value text-gradient-green">$45,000</span>
             </div>
           </div>
         </div>
@@ -108,15 +96,15 @@ export default function HeroSection() {
         <div className="hero__notif hero__notif--1">
           <span>✅</span>
           <div>
-            <p className="hero__notif-title">Servicio completado</p>
-            <p className="hero__notif-sub">Pago recibido: $350</p>
+            <p className="hero__notif-title">Servicio aceptado</p>
+            <p className="hero__notif-sub">Plomero en camino</p>
           </div>
         </div>
         <div className="hero__notif hero__notif--2">
           <span>🚀</span>
           <div>
             <p className="hero__notif-title">Nuevo cliente</p>
-            <p className="hero__notif-sub">Te ha contactado</p>
+            <p className="hero__notif-sub">Solicitud recibida</p>
           </div>
         </div>
       </div>

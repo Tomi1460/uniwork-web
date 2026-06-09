@@ -3,54 +3,39 @@ import './Solutions.css'
 
 const solutions = [
   {
-    id: 'workers',
-    label: 'Para Trabajadores',
-    icon: '👤',
+    id: 'clients',
+    label: 'Para Clientes',
+    icon: '🏠',
     color: '#6c63ff',
-    headline: 'Tu carrera, en tus manos',
-    desc: 'Accede a miles de oportunidades de trabajo, gestiona tus servicios y cobra de forma segura. Uniwork te da el control total de tu carrera independiente.',
+    headline: 'Resolvé problemas en tu hogar con confianza',
+    desc: 'Buscá, compará y contratá prestadores de servicios calificados para tu hogar. Desde plomería hasta electricidad, con total transparencia y seguridad.',
     points: [
-      'Crea tu perfil profesional verificado',
-      'Recibe solicitudes de trabajo directamente',
-      'Chat con clientes en tiempo real',
-      'Cobra de forma segura y automática',
-      'Rastrea tus ganancias con analítica clara',
+      'Buscá prestadores por oficio o cercanía',
+      'Revisá calificaciones y reseñas reales',
+      'Coordiná fecha y modalidad por chat integrado',
+      'Confirmá y calificá el servicio una vez terminado',
+      'Soporte y resolución de conflictos',
     ],
   },
   {
-    id: 'companies',
-    label: 'Para Empresas',
-    icon: '🏢',
-    color: '#ff6584',
-    headline: 'Talento cuando lo necesitas',
-    desc: 'Publica servicios, encuentra al profesional ideal y gestiona todo tu equipo independiente desde un solo panel. Rápido, flexible y sin papeleo.',
-    points: [
-      'Publica servicios en minutos',
-      'Encuentra profesionales verificados',
-      'Gestiona múltiples proyectos en paralelo',
-      'Panel de administración completo',
-      'Historial de servicios y facturación',
-    ],
-  },
-  {
-    id: 'teams',
-    label: 'Para Equipos',
-    icon: '🤝',
+    id: 'providers',
+    label: 'Para Prestadores',
+    icon: '🔧',
     color: '#43e97b',
-    headline: 'Colaboración sin fricciones',
-    desc: 'Coordina equipos mixtos de empleados y colaboradores externos. Asigna tareas, supervisa avances y mantén todo sincronizado en un solo lugar.',
+    headline: 'Tu oficio, organizado y profesional',
+    desc: 'Publicá tus servicios, conseguí clientes sin depender del boca a boca y construí una reputación sólida. Uniwork es la herramienta para profesionalizar tu actividad.',
     points: [
-      'Asignación inteligente de tareas',
-      'Seguimiento de avances en tiempo real',
-      'Notificaciones y alertas automáticas',
-      'Integración con tus herramientas actuales',
-      'Reportes de desempeño por equipo',
+      'Cuidamos tu reputación con calificaciones verificadas',
+      'Gestioná solicitudes entrantes y órdenes activas',
+      'Comunicación directa con el cliente',
+      'Historial de trabajos y ganancias',
+      'Los primeros 4 servicios son gratis',
     ],
   },
 ]
 
 export default function Solutions() {
-  const [active, setActive] = useState('workers')
+  const [active, setActive] = useState('clients')
   const sol = solutions.find(s => s.id === active)
 
   return (
@@ -62,10 +47,10 @@ export default function Solutions() {
             Nuestras Soluciones
           </div>
           <h2 className="heading-lg solutions__title">
-            Diseñado para <span className="text-gradient">cada caso de uso</span>
+            Diseñado para <span className="text-gradient">ambas partes</span>
           </h2>
           <p className="solutions__subtitle">
-            Ya sea que seas un profesional independiente, una empresa en crecimiento o un equipo que necesita coordinación, Uniwork tiene una solución para ti.
+            Uniwork centraliza la oferta y la demanda, creando un entorno transparente para quienes necesitan un servicio y para quienes lo ofrecen.
           </p>
         </div>
 
@@ -103,6 +88,10 @@ export default function Solutions() {
             <button
               className="btn btn-primary"
               style={{ marginTop: '1.5rem', background: `linear-gradient(135deg, ${sol.color} 0%, #ff6584 100%)` }}
+              onClick={() => {
+                const dl = document.querySelector('#download')
+                if (dl) dl.scrollIntoView({ behavior: 'smooth' })
+              }}
             >
               Comenzar ahora →
             </button>

@@ -3,52 +3,35 @@ import './ValueProposition.css'
 const values = [
   {
     number: '01',
-    title: 'Todo en uno',
-    desc: 'No más saltar entre apps. Gestiona servicios, chatea con clientes, cobra y analiza tu negocio desde una sola plataforma unificada.',
+    title: 'Reducción de la incertidumbre',
+    desc: 'La contratación de servicios del hogar siempre fue un proceso informal y poco confiable. Uniwork estructura el mercado con validación de antecedentes, calificaciones verificadas y comunicación dentro de la plataforma.',
     color: '#6c63ff',
   },
   {
     number: '02',
-    title: 'Tiempo real, siempre',
-    desc: 'Actualizaciones instantáneas. Cuando alguien acepta tu servicio, lo sabrás en segundos. Sin retrasos, sin confusiones.',
+    title: 'Confianza como pilar central',
+    desc: 'Incorporamos verificación de antecedentes de los prestadores, un sistema de reputación acumulable y mecanismos de resolución de conflictos. No solo intermediamos, construimos confianza.',
     color: '#ff6584',
   },
   {
     number: '03',
-    title: 'Web + Móvil',
-    desc: 'Usa Uniwork desde tu teléfono Android o directamente desde el navegador. Tu cuenta se sincroniza en todos tus dispositivos automáticamente.',
+    title: 'Un sector resiliente al cambio tecnológico',
+    desc: 'A diferencia de otros mercados, los oficios del hogar requieren presencia física y habilidades prácticas. La automatización y la IA no los reemplazan, lo que posiciona a Uniwork en un segmento con demanda sostenida y baja sustitución.',
     color: '#43e97b',
   },
   {
     number: '04',
-    title: 'Sin complicaciones',
-    desc: 'Interfaz intuitiva diseñada para que cualquier persona pueda usarla desde el primer día, sin curva de aprendizaje.',
+    title: 'Altamente escalable',
+    desc: 'Gracias a su base digital, Uniwork puede expandirse a nuevos usuarios, categorías y mercados sin modificar su estructura central. Un modelo adaptable a distintos contextos geográficos y de demanda.',
     color: '#f59e0b',
   },
 ]
 
-const testimonials = [
-  {
-    name: 'María González',
-    role: 'Diseñadora Freelance',
-    text: 'Uniwork me permitió triplicar mis clientes en 3 meses. Todo el proceso de cotización, coordinación y cobro es increíblemente simple.',
-    avatar: 'MG',
-    color: '#6c63ff',
-  },
-  {
-    name: 'Carlos Ruíz',
-    role: 'CEO, TechStartup Co.',
-    text: 'Gestionamos 20+ freelancers con Uniwork y nos ahorra horas semanales en coordinación. Indispensable para nuestro equipo.',
-    avatar: 'CR',
-    color: '#ff6584',
-  },
-  {
-    name: 'Luisa Mendoza',
-    role: 'Desarrolladora Web',
-    text: 'La mejor plataforma para trabajadores independientes. Los pagos son seguros y el soporte siempre está disponible.',
-    avatar: 'LM',
-    color: '#43e97b',
-  },
+const howItWorks = [
+  { step: '01', icon: '🔍', title: 'El cliente busca', desc: 'Explora prestadores disponibles por categoría, ubicación y calificaciones.' },
+  { step: '02', icon: '📋', title: 'Selecciona y solicita', desc: 'Elige al prestador ideal y envía una solicitud de servicio con los detalles del trabajo.' },
+  { step: '03', icon: '💬', title: 'Coordinan dentro de la app', desc: 'El prestador acepta y ambas partes coordinan fecha, modalidad (domicilio o local) y precio.' },
+  { step: '04', icon: '✅', title: 'Confirma y califica', desc: 'Una vez finalizado el servicio, el cliente confirma y califica la experiencia. La reputación del prestador crece.' },
 ]
 
 export default function ValueProposition() {
@@ -65,7 +48,8 @@ export default function ValueProposition() {
             La ventaja <span className="text-gradient">que marca la diferencia</span>
           </h2>
           <p className="value__subtitle">
-            No solo somos otra plataforma de trabajo. Somos el ecosistema completo diseñado para el futuro del trabajo independiente en Latinoamérica.
+            No somos solo otra app de servicios. Somos la primera plataforma diseñada para transformar 
+            un mercado históricamente informal en un ecosistema digital de confianza.
           </p>
         </div>
 
@@ -86,26 +70,27 @@ export default function ValueProposition() {
         {/* Divider */}
         <div className="divider" style={{ margin: '5rem 0' }}></div>
 
-        {/* Testimonials */}
-        <div className="value__testimonials-header">
-          <h3 className="heading-md">
-            Lo que dicen <span className="text-gradient">nuestros usuarios</span>
+        {/* How it works */}
+        <div className="value__how-header">
+          <div className="section-label">
+            <span className="glow-dot"></span>
+            Cómo funciona
+          </div>
+          <h3 className="heading-lg">
+            Simple, <span className="text-gradient">paso a paso</span>
           </h3>
+          <p className="value__subtitle" style={{ maxWidth: 480 }}>
+            Todo el flujo se gestiona dentro de la plataforma, asegurando orden, comunicación y control en cada etapa.
+          </p>
         </div>
-        <div className="value__testimonials grid-3">
-          {testimonials.map((t) => (
-            <div key={t.name} className="card value__testimonial">
-              <div className="value__stars">★★★★★</div>
-              <p className="value__quote">"{t.text}"</p>
-              <div className="value__author">
-                <div className="value__avatar" style={{ background: `linear-gradient(135deg, ${t.color} 0%, #ff6584 100%)` }}>
-                  {t.avatar}
-                </div>
-                <div>
-                  <div className="value__author-name">{t.name}</div>
-                  <div className="value__author-role">{t.role}</div>
-                </div>
-              </div>
+
+        <div className="value__how-grid grid-4">
+          {howItWorks.map((h, i) => (
+            <div key={h.step} className="value__how-card card">
+              <div className="value__how-icon">{h.icon}</div>
+              <div className="value__how-step" style={{ color: `hsl(${240 + i * 30}, 80%, 75%)` }}>Paso {h.step}</div>
+              <h4 className="heading-sm">{h.title}</h4>
+              <p className="value__how-desc">{h.desc}</p>
             </div>
           ))}
         </div>

@@ -9,10 +9,10 @@ import HeroSection from './components/HeroSection'
 import AboutUs from './components/AboutUs'
 import Solutions from './components/Solutions'
 import ValueProposition from './components/ValueProposition'
-import Pricing from './components/Pricing'
 import DownloadApp from './components/DownloadApp'
 import Contact from './components/Contact'
 import Footer from './components/Footer'
+import WhatsAppButton from './components/WhatsAppButton'
 
 // App pages (lazy loaded)
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -31,11 +31,11 @@ function LandingPage() {
         <AboutUs />
         <Solutions />
         <ValueProposition />
-        <Pricing />
         <DownloadApp />
         <Contact />
       </main>
       <Footer />
+      <WhatsAppButton />
     </>
   )
 }

@@ -19,7 +19,6 @@ export default function DownloadApp() {
     { src: appServicios, label: 'Servicios disponibles', desc: 'Explora y contrata prestadores cercanos' },
     { src: appPrestador, label: 'Panel del prestador', desc: 'Gestiona órdenes y ganancias' },
     { src: appChat, label: 'Chat integrado', desc: 'Coordina con clientes en tiempo real' },
-    { src: appPagos, label: 'Pagos seguros', desc: 'Confirma y cobra sin salir de la app' },
   ]
 
   return (
@@ -83,15 +82,21 @@ export default function DownloadApp() {
             </ul>
             <a
               id="btn-playstore"
-              href={PLAY_STORE_URL}
+              href="https://wa.link/92v8k3"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary btn-lg download__btn"
+              style={{ padding: '1rem', height: 'auto', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.9 5L7 11.5v1L17.9 19l2.6-1.5v-11L17.9 5zM5 19.5V4.5L4 4 3 4.5v15L4 20l1-.5z"/>
-              </svg>
-              Descargar en Play Store
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                Contáctanos por WhatsApp
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, opacity: 0.9 }}>
+                Solicita acceso a la fase de prueba o verifícate como prestador
+              </span>
             </a>
             <div className="download__store-badge">
               <svg viewBox="0 0 135 40" width="135" height="40" fill="none" xmlns="http://www.w3.org/2000/svg">

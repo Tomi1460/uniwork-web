@@ -106,14 +106,6 @@ export default function LoginPage() {
             <img src="/src/assets/app_servicios.png" alt="App servicios" className="login-page__ss login-page__ss--1" />
             <img src="/src/assets/app_prestador.png" alt="App prestador" className="login-page__ss login-page__ss--2" />
           </div>
-          <div className="login-page__left-stats">
-            {[['10K+', 'Usuarios'], ['50K+', 'Servicios'], ['4.9★', 'Calificación']].map(([v, l]) => (
-              <div key={l} className="login-page__stat">
-                <span className="login-page__stat-val">{v}</span>
-                <span className="login-page__stat-label">{l}</span>
-              </div>
-            ))}
-          </div>
         </div>
         <div className="login-page__left-orb1"></div>
         <div className="login-page__left-orb2"></div>
@@ -126,136 +118,26 @@ export default function LoginPage() {
             ← Volver al inicio
           </button>
 
-          <div className="login-page__form-header">
-            <h1 className="heading-md">{titles[mode]}</h1>
-            <p className="login-page__subtitle">{subtitles[mode]}</p>
+          <div className="login-page__form-header" style={{ textAlign: 'center' }}>
+            <h1 className="heading-md" style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Próximamente</h1>
+            <p className="login-page__subtitle" style={{ fontSize: '1.1rem' }}>
+              La versión web de Uniwork está en desarrollo. Pronto podrás iniciar sesión y gestionar tus servicios desde aquí.
+            </p>
           </div>
 
-          {/* Alerts */}
-          {error && (
-            <div className="login-page__alert login-page__alert--error">
-              <span>⚠️</span> {error}
-            </div>
-          )}
-          {successMsg && (
-            <div className="login-page__alert login-page__alert--success">
-              <span>✅</span> {successMsg}
-            </div>
-          )}
-
-          {/* Role selector (signup only) */}
-          {mode === 'signup' && (
-            <div className="login-page__roles">
-              <button
-                type="button"
-                id="role-client"
-                className={`login-page__role ${role === 'client' ? 'active' : ''}`}
-                onClick={() => setRole('client')}
-              >
-                <span className="login-page__role-icon">👤</span>
-                <span className="login-page__role-name">Soy Cliente</span>
-                <span className="login-page__role-desc">Busco servicios</span>
-              </button>
-              <button
-                type="button"
-                id="role-provider"
-                className={`login-page__role ${role === 'provider' ? 'active' : ''}`}
-                onClick={() => setRole('provider')}
-              >
-                <span className="login-page__role-icon">🔧</span>
-                <span className="login-page__role-name">Soy Prestador</span>
-                <span className="login-page__role-desc">Ofrezco servicios</span>
-              </button>
-            </div>
-          )}
-
-          <form className="login-page__form" onSubmit={handleSubmit}>
-            {mode === 'signup' && (
-              <div className="login-page__field">
-                <label htmlFor="full-name" className="login-page__label">Nombre completo</label>
-                <input
-                  id="full-name"
-                  type="text"
-                  className="login-page__input"
-                  placeholder="Juan García"
-                  value={fullName}
-                  onChange={e => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-
-            <div className="login-page__field">
-              <label htmlFor="login-email" className="login-page__label">Correo electrónico</label>
-              <input
-                id="login-email"
-                type="email"
-                className="login-page__input"
-                placeholder="hola@ejemplo.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-
-            {mode !== 'forgot' && (
-              <div className="login-page__field">
-                <div className="login-page__label-row">
-                  <label htmlFor="login-password" className="login-page__label">Contraseña</label>
-                  {mode === 'login' && (
-                    <button type="button" className="login-page__forgot-link" onClick={() => { setMode('forgot'); setError(null); }}>
-                      ¿Olvidaste tu contraseña?
-                    </button>
-                  )}
-                </div>
-                <input
-                  id="login-password"
-                  type="password"
-                  className="login-page__input"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  minLength={6}
-                />
-              </div>
-            )}
-
-            <button
-              id="btn-auth-submit"
-              type="submit"
-              className="btn btn-primary btn-lg login-page__submit"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="login-page__spinner"></span>
-              ) : mode === 'login' ? 'Iniciar sesión' : mode === 'signup' ? 'Crear cuenta' : 'Enviar enlace'}
-            </button>
-          </form>
-
-          {/* Mode switchers */}
-          <div className="login-page__switch">
-            {mode === 'forgot' ? (
-              <button type="button" className="login-page__switch-btn" onClick={() => { setMode('login'); setError(null); setSuccessMsg(null) }}>
-                ← Volver a iniciar sesión
-              </button>
-            ) : mode === 'login' ? (
-              <p>
-                ¿No tienes cuenta?{' '}
-                <button type="button" className="login-page__switch-btn" onClick={() => { setMode('signup'); setError(null); setSuccessMsg(null) }}>
-                  Regístrate gratis
-                </button>
-              </p>
-            ) : (
-              <p>
-                ¿Ya tienes cuenta?{' '}
-                <button type="button" className="login-page__switch-btn" onClick={() => { setMode('login'); setError(null); setSuccessMsg(null) }}>
-                  Inicia sesión aquí
-                </button>
-              </p>
-            )}
+          <div style={{
+            background: 'rgba(108, 99, 255, 0.1)',
+            border: '1px solid var(--color-primary)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '2rem',
+            textAlign: 'center',
+            marginTop: '2rem'
+          }}>
+            <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>🚀</span>
+            <h3 className="heading-sm" style={{ color: 'var(--color-primary-light)' }}>¡Estamos trabajando duro!</h3>
+            <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+              Por el momento te invitamos a usar nuestra aplicación móvil disponible en Android.
+            </p>
           </div>
         </div>
       </div>

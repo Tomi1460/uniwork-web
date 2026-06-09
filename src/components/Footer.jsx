@@ -4,25 +4,11 @@ const footerLinks = {
   'Producto': [
     { label: 'Características', href: '#about' },
     { label: 'Soluciones', href: '#solutions' },
-    { label: 'Precios', href: '#pricing' },
     { label: 'App móvil', href: '#download' },
   ],
   'Empresa': [
     { label: 'Sobre nosotros', href: '#about' },
-    { label: 'Blog', href: '#' },
     { label: 'Trabaja con nosotros', href: '#contact' },
-    { label: 'Prensa', href: '#' },
-  ],
-  'Soporte': [
-    { label: 'Centro de ayuda', href: '#' },
-    { label: 'Contacto', href: '#contact' },
-    { label: 'Estado del servicio', href: '#' },
-    { label: 'Comunidad', href: '#' },
-  ],
-  'Legal': [
-    { label: 'Privacidad', href: '#' },
-    { label: 'Términos de uso', href: '#' },
-    { label: 'Cookies', href: '#' },
   ],
 }
 
