@@ -245,3 +245,89 @@
     justify-content: center;
   }
 }
+
+/* ---- APP SCREENSHOTS GALLERY ---- */
+.download__gallery {
+  margin-top: 5rem;
+  position: relative;
+  z-index: 2;
+}
+
+.download__gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.download__gallery-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.download__gallery-tab {
+  padding: 0.4rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-display);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.download__gallery-tab:hover {
+  border-color: var(--border-glow);
+  color: var(--text-secondary);
+}
+
+.download__gallery-tab.active {
+  background: rgba(108, 99, 255, 0.15);
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.download__gallery-view {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 3rem;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+}
+
+.download__gallery-phone {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-glow), var(--shadow-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.download__gallery-img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.download__gallery-info {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .download__gallery-view {
+    grid-template-columns: 1fr;
+    padding: 1.5rem;
+  }
+  .download__gallery-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,14 +1,26 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import './DownloadApp.css'
 
 // TODO: Replace with your actual Play Store URL when available
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.uniwork.app'
 
-// TODO: Replace with your actual web app URL (e.g., where your React Native/web app is hosted)
-const WEB_APP_URL = '#login'
+import appServicios from '../assets/app_servicios.png'
+import appPrestador from '../assets/app_prestador.png'
+import appChat from '../assets/app_chat.png'
+import appPagos from '../assets/app_pagos.png'
 
 export default function DownloadApp() {
   const [hoveredCard, setHoveredCard] = useState(null)
+  const [activeScreen, setActiveScreen] = useState(0)
+  const navigate = useNavigate()
+
+  const screens = [
+    { src: appServicios, label: 'Servicios disponibles', desc: 'Explora y contrata prestadores cercanos' },
+    { src: appPrestador, label: 'Panel del prestador', desc: 'Gestiona órdenes y ganancias' },
+    { src: appChat, label: 'Chat integrado', desc: 'Coordina con clientes en tiempo real' },
+    { src: appPagos, label: 'Pagos seguros', desc: 'Confirma y cobra sin salir de la app' },
+  ]
 
   return (
     <section id="download" className="section download">
@@ -28,7 +40,7 @@ export default function DownloadApp() {
             Úsalo como <span className="text-gradient">prefieras</span>
           </h2>
           <p className="download__subtitle">
-            Inwurk está disponible en tu teléfono Android y también directamente desde tu navegador web. 
+            Uniwork está disponible en tu teléfono Android y también directamente desde tu navegador web.
             Tu cuenta, tus datos y tus servicios siempre sincronizados.
           </p>
         </div>
@@ -129,19 +141,20 @@ export default function DownloadApp() {
               <li>✅ Misma cuenta, todos tus datos</li>
               <li>✅ Pantalla grande para más productividad</li>
             </ul>
-            <a
+            <button
               id="btn-webapp-login"
-              href={WEB_APP_URL}
               className="btn btn-outline btn-lg download__btn"
+              onClick={() => navigate('/login')}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                 <circle cx="12" cy="7" r="4"/>
               </svg>
               Iniciar sesión en la Web
-            </a>
+            </button>
             <p className="download__register-hint">
-              ¿No tienes cuenta? <a href="#contact" className="download__register-link">Regístrate gratis →</a>
+              ¿No tienes cuenta?{' '}
+              <button className="download__register-link" style={{background:'none',border:'none',cursor:'pointer',padding:0,fontSize:'inherit'}} onClick={() => navigate('/login')}>Regístrate gratis →</button>
             </p>
           </div>
         </div>
@@ -150,6 +163,53 @@ export default function DownloadApp() {
         <div className="download__sync">
           <div className="glow-dot"></div>
           <span>Tu cuenta se sincroniza en todos tus dispositivos en tiempo real</span>
+        </div>
+
+        {/* App Screenshots Gallery */}
+        <div className="download__gallery">
+          <div className="download__gallery-header">
+            <h3 className="heading-sm">Así se ve la app</h3>
+            <div className="download__gallery-tabs">
+              {screens.map((s, i) => (
+                <button
+                  key={i}
+                  className={`download__gallery-tab ${activeScreen === i ? 'active' : ''}`}
+                  onClick={() => setActiveScreen(i)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="download__gallery-view">
+            <div className="download__gallery-phone">
+              <img
+                src={screens[activeScreen].src}
+                alt={screens[activeScreen].label}
+                className="download__gallery-img"
+              />
+            </div>
+            <div className="download__gallery-info">
+              <h4 className="heading-sm" style={{color:'var(--text-primary)'}}>{screens[activeScreen].label}</h4>
+              <p style={{color:'var(--text-secondary)', marginTop:'0.5rem'}}>{screens[activeScreen].desc}</p>
+              <div style={{display:'flex',gap:'0.5rem',marginTop:'1.5rem',flexWrap:'wrap'}}>
+                {screens.map((_, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setActiveScreen(i)}
+                    style={{
+                      width: i === activeScreen ? 24 : 8,
+                      height: 8,
+                      borderRadius: 4,
+                      background: i === activeScreen ? 'var(--color-primary)' : 'var(--border-subtle)',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease'
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

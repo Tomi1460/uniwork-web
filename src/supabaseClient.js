@@ -1,8 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 
-// TODO: Reemplaza estos valores con los de tu proyecto Supabase
-// Puedes encontrarlos en: supabase.com → tu proyecto → Settings → API
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT.supabase.co'
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Faltan variables de entorno de Supabase. Revisa tu archivo .env')
+}
+
+// Web-safe client (localStorage instead of Capacitor Preferences)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+  }
+})
