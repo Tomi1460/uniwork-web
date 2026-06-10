@@ -160,11 +160,24 @@
 @media (max-width: 768px) {
   .solutions__panel {
     grid-template-columns: 1fr;
-    padding: 2rem;
-    gap: 2rem;
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+  .solutions__panel-desc {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .solutions__tab {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
   }
   .solutions__visual {
-    height: 200px;
+    height: 180px;
     order: -1;
+  }
+  .solutions__icon-big {
+    width: 100px;
+    height: 100px;
+    font-size: 3rem;
   }
 }

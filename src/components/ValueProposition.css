@@ -150,12 +150,23 @@
   color: var(--text-muted);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .value__item {
-    grid-template-columns: 50px 3px 1fr;
-    gap: 1rem;
+    grid-template-columns: 50px 2px 1fr;
+    gap: 1.25rem;
+    padding: 1.5rem 0;
   }
   .value__number {
     font-size: 1.8rem;
+  }
+  .value__item-title {
+    font-size: 1.15rem;
+  }
+  .value__item-desc {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .value__header {
+    margin-bottom: 2.5rem;
   }
 }

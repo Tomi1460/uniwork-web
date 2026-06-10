@@ -128,17 +128,17 @@ h1, h2, h3, h4, h5 {
 }
 
 .heading-xl {
-  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-size: clamp(2.2rem, 8vw, 4.5rem);
   font-weight: 900;
   letter-spacing: -0.03em;
 }
 .heading-lg {
-  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-size: clamp(1.7rem, 6vw, 3.2rem);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 .heading-md {
-  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-size: clamp(1.3rem, 4vw, 2rem);
   font-weight: 700;
 }
 .heading-sm {

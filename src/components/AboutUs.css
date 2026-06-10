@@ -95,4 +95,12 @@
     grid-template-columns: 1fr;
     padding: 1.5rem;
   }
+  .about__lead {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  .about__desc {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
 }
