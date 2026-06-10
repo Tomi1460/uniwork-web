@@ -8,7 +8,6 @@ import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
 import AboutUs from './components/AboutUs'
 import Solutions from './components/Solutions'
-import ValueProposition from './components/ValueProposition'
 import DownloadApp from './components/DownloadApp'
 import Contact from './components/Contact'
 import Footer from './components/Footer'
@@ -30,7 +29,6 @@ function LandingPage() {
         <HeroSection />
         <AboutUs />
         <Solutions />
-        <ValueProposition />
         <DownloadApp />
         <Contact />
       </main>
