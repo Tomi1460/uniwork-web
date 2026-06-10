@@ -39,8 +39,7 @@ export default function DownloadApp() {
             Úsalo como <span className="text-gradient">prefieras</span>
           </h2>
           <p className="download__subtitle">
-            Uniwork está disponible en tu teléfono Android y también directamente desde tu navegador web.
-            Tu cuenta, tus datos y tus servicios siempre sincronizados.
+            Estamos buscando a nuestros <strong>primeros prestadores verificados</strong> y <strong>clientes pioneros</strong> en Paraná, Entre Ríos. Contáctanos para participar de nuestra fase de prueba cerrada.
           </p>
         </div>
 

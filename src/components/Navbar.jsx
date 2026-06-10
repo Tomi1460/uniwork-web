@@ -12,7 +12,6 @@ export default function Navbar() {
   }, [])
 
   const navLinks = [
-    { label: 'Qué hacemos', href: '#about' },
     { label: 'Soluciones', href: '#solutions' },
     { label: 'Contacto', href: '#contact' },
   ]

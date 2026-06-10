@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 // Landing sections (all assembled in LandingPage)
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
-import AboutUs from './components/AboutUs'
 import Solutions from './components/Solutions'
 import DownloadApp from './components/DownloadApp'
 import Contact from './components/Contact'
@@ -27,7 +26,6 @@ function LandingPage() {
       <Navbar />
       <main>
         <HeroSection />
-        <AboutUs />
         <Solutions />
         <DownloadApp />
         <Contact />

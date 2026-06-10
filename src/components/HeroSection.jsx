@@ -20,7 +20,7 @@ export default function HeroSection() {
         {/* Badge */}
         <div className="hero__badge animate-fadeInUp delay-1">
           <span className="glow-dot"></span>
-          Disponible ahora en Android
+          Etapa de prueba cerrada
         </div>
 
         {/* Headline */}
@@ -31,7 +31,7 @@ export default function HeroSection() {
 
         {/* Sub */}
         <p className="hero__subtitle animate-fadeInUp delay-3">
-          Uniwork conecta personas con prestadores de oficios de confianza. Plomería, electricidad, peluquería y más. Transparente, sin intermediarios ocultos y con calificaciones verificadas.
+          Uniwork conecta personas con prestadores de oficios de confianza. Estamos en fase de prueba en <strong>Paraná, Entre Ríos</strong>, verificando a nuestros primeros prestadores y sumando clientes para iniciar.
         </p>
 
         {/* CTA Buttons */}
