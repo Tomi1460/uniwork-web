@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { Home, Wrench, Check } from 'lucide-react'
 import './Solutions.css'
 
 const solutions = [
   {
     id: 'clients',
     label: 'Para Clientes',
-    icon: '🏠',
+    Icon: Home,
     color: '#6c63ff',
     headline: 'Resolvé problemas en tu hogar con confianza',
     desc: 'Buscá, compará y contratá prestadores de servicios calificados para tu hogar. Desde plomería hasta electricidad, con total transparencia y seguridad.',
@@ -20,7 +21,7 @@ const solutions = [
   {
     id: 'providers',
     label: 'Para Prestadores',
-    icon: '🔧',
+    Icon: Wrench,
     color: '#43e97b',
     headline: 'Tu oficio, organizado y profesional',
     desc: 'Publicá tus servicios, conseguí clientes sin depender del boca a boca y construí una reputación sólida. Uniwork es la herramienta para profesionalizar tu actividad.',
@@ -66,7 +67,7 @@ export default function Solutions() {
               onClick={() => setActive(s.id)}
               style={{ '--tab-color': s.color }}
             >
-              <span>{s.icon}</span>
+              <s.Icon size={18} />
               {s.label}
             </button>
           ))}
@@ -80,7 +81,7 @@ export default function Solutions() {
             <ul className="solutions__list">
               {sol.points.map((p, i) => (
                 <li key={i} className="solutions__list-item">
-                  <span className="solutions__check" style={{ color: sol.color }}>✓</span>
+                  <Check size={18} className="solutions__check-icon" style={{ color: sol.color }} />
                   {p}
                 </li>
               ))}
@@ -99,7 +100,7 @@ export default function Solutions() {
 
           <div className="solutions__visual">
             <div className="solutions__icon-big" style={{ '--sol-color': sol.color }}>
-              <span>{sol.icon}</span>
+              <sol.Icon size={56} style={{ color: sol.color }} />
             </div>
             <div className="solutions__decorlines">
               {[...Array(4)].map((_, i) => (

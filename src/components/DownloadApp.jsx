@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CheckCircle2, Phone, User, Globe } from 'lucide-react'
 import './DownloadApp.css'
 
 // TODO: Replace with your actual Play Store URL when available
@@ -19,6 +20,20 @@ export default function DownloadApp() {
     { src: appServicios, label: 'Servicios disponibles', desc: 'Explora y contrata prestadores cercanos' },
     { src: appPrestador, label: 'Panel del prestador', desc: 'Gestiona órdenes y ganancias' },
     { src: appChat, label: 'Chat integrado', desc: 'Coordina con clientes en tiempo real' },
+  ]
+
+  const androidFeatures = [
+    'Notificaciones en tiempo real',
+    'Interfaz optimizada para móvil',
+    'Acceso rápido con biometría',
+    'Funciones exclusivas del app',
+  ]
+
+  const webFeatures = [
+    'Acceso instantáneo desde cualquier PC',
+    'Sin necesidad de instalar nada',
+    'Misma cuenta, todos tus datos',
+    'Pantalla grande para más productividad',
   ]
 
   return (
@@ -74,10 +89,12 @@ export default function DownloadApp() {
               Descarga la app en tu dispositivo Android y lleva Uniwork contigo a donde vayas. Notificaciones push, acceso offline y más.
             </p>
             <ul className="download__features">
-              <li>✅ Notificaciones en tiempo real</li>
-              <li>✅ Interfaz optimizada para móvil</li>
-              <li>✅ Acceso rápido con biometría</li>
-              <li>✅ Funciones exclusivas del app</li>
+              {androidFeatures.map((f, i) => (
+                <li key={i}>
+                  <CheckCircle2 size={16} className="download__feature-icon download__feature-icon--green" />
+                  {f}
+                </li>
+              ))}
             </ul>
             <a
               id="btn-playstore"
@@ -88,9 +105,7 @@ export default function DownloadApp() {
               style={{ padding: '1rem', height: 'auto', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                </svg>
+                <Phone size={20} />
                 Contáctanos por WhatsApp
               </div>
               <span style={{ fontSize: '0.75rem', fontWeight: 400, opacity: 0.9 }}>
@@ -126,34 +141,26 @@ export default function DownloadApp() {
             <div className="download__card-glow download__card-glow--web"></div>
             <div className="download__card-badge">Acceso inmediato</div>
             <div className="download__card-icon">
-              <svg width="56" height="56" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="url(#web1)" strokeWidth="1.5"/>
-                <path d="M2 12h20M12 2c-3 3-4.5 6-4.5 10S9 19 12 22M12 2c3 3 4.5 6 4.5 10S15 19 12 22" stroke="url(#web2)" strokeWidth="1.5"/>
-                <defs>
-                  <linearGradient id="web1" x1="2" y1="2" x2="22" y2="22"><stop stopColor="#6c63ff"/><stop offset="1" stopColor="#ff6584"/></linearGradient>
-                  <linearGradient id="web2" x1="2" y1="2" x2="22" y2="22"><stop stopColor="#6c63ff"/><stop offset="1" stopColor="#ff6584"/></linearGradient>
-                </defs>
-              </svg>
+              <Globe size={56} className="download__globe-icon" />
             </div>
             <h3 className="heading-md download__card-title">Versión Web</h3>
             <p className="download__card-desc">
               Inicia sesión directamente desde tu navegador y usa Uniwork al instante. Sin descargas, sin instalación. Solo necesitas tu cuenta.
             </p>
             <ul className="download__features">
-              <li>✅ Acceso instantáneo desde cualquier PC</li>
-              <li>✅ Sin necesidad de instalar nada</li>
-              <li>✅ Misma cuenta, todos tus datos</li>
-              <li>✅ Pantalla grande para más productividad</li>
+              {webFeatures.map((f, i) => (
+                <li key={i}>
+                  <CheckCircle2 size={16} className="download__feature-icon download__feature-icon--purple" />
+                  {f}
+                </li>
+              ))}
             </ul>
             <button
               id="btn-webapp-login"
               className="btn btn-outline btn-lg download__btn"
               onClick={() => navigate('/login')}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
+              <User size={20} />
               Iniciar sesión en la Web
             </button>
             <p className="download__register-hint">

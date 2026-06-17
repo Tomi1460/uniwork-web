@@ -1,3 +1,4 @@
+import { CheckCircle, Rocket, Hand } from 'lucide-react'
 import './HeroSection.css'
 
 export default function HeroSection() {
@@ -72,7 +73,7 @@ export default function HeroSection() {
             <div className="mockup__header">
               <div className="mockup__avatar"></div>
               <div>
-                <div className="mockup__name">Hola, Juan 👋</div>
+                <div className="mockup__name">Hola, Juan <Hand size={14} style={{ display: 'inline', verticalAlign: 'middle', color: '#FFD700' }} /></div>
                 <div className="mockup__sub">Nuevas solicitudes de clientes</div>
               </div>
             </div>
@@ -94,14 +95,14 @@ export default function HeroSection() {
 
         {/* Floating notification */}
         <div className="hero__notif hero__notif--1">
-          <span>✅</span>
+          <CheckCircle size={20} className="hero__notif-icon hero__notif-icon--success" />
           <div>
             <p className="hero__notif-title">Servicio aceptado</p>
             <p className="hero__notif-sub">Plomero en camino</p>
           </div>
         </div>
         <div className="hero__notif hero__notif--2">
-          <span>🚀</span>
+          <Rocket size={20} className="hero__notif-icon hero__notif-icon--rocket" />
           <div>
             <p className="hero__notif-title">Nuevo cliente</p>
             <p className="hero__notif-sub">Solicitud recibida</p>

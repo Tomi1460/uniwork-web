@@ -108,11 +108,9 @@
   font-size: 0.95rem;
 }
 
-.solutions__check {
-  font-weight: 800;
-  font-size: 1rem;
-  line-height: 1.4;
+.solutions__check-icon {
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* Visual Area */

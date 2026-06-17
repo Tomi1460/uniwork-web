@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react'
 import './Footer.css'
 
 const footerLinks = {
@@ -28,15 +29,11 @@ export default function Footer() {
             {/* Brand */}
             <div className="footer__brand">
               <div className="footer__logo">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                  <circle cx="14" cy="14" r="13" stroke="url(#fg1)" strokeWidth="2"/>
-                  <path d="M8 10l6 8 6-8" stroke="url(#fg2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <defs>
-                    <linearGradient id="fg1" x1="0" y1="0" x2="28" y2="28"><stop stopColor="#6c63ff"/><stop offset="1" stopColor="#ff6584"/></linearGradient>
-                    <linearGradient id="fg2" x1="0" y1="0" x2="28" y2="28"><stop stopColor="#6c63ff"/><stop offset="1" stopColor="#ff6584"/></linearGradient>
-                  </defs>
-                </svg>
-                <span className="footer__logo-text">Uni<span className="text-gradient">work</span></span>
+                <img
+                  src="/uniwork-logo.png"
+                  alt="Uniwork"
+                  className="footer__logo-img"
+                />
               </div>
               <p className="footer__tagline">
                 El futuro del trabajo independiente, hoy. Conectamos talento con oportunidades en toda Latinoamérica.
@@ -88,7 +85,7 @@ export default function Footer() {
           <div className="footer__bottom-inner">
             <p className="footer__copyright">© {new Date().getFullYear()} Uniwork. Todos los derechos reservados.</p>
             <p className="footer__made">
-              Hecho con ❤️ para Latinoamérica
+              Hecho con <Heart size={14} className="footer__heart-icon" /> para Latinoamérica
             </p>
           </div>
         </div>

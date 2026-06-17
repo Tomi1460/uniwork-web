@@ -166,13 +166,33 @@
 .download__features {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
   list-style: none;
 }
 
 .download__features li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+.download__feature-icon {
+  flex-shrink: 0;
+}
+
+.download__feature-icon--green {
+  color: #43e97b;
+}
+
+.download__feature-icon--purple {
+  color: var(--color-primary-light);
+}
+
+.download__globe-icon {
+  color: var(--color-primary-light);
+  filter: drop-shadow(0 0 16px rgba(108, 99, 255, 0.4));
 }
 
 .download__btn {

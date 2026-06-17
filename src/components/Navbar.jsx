@@ -27,23 +27,11 @@ export default function Navbar() {
       <div className="navbar__inner container">
         {/* Logo */}
         <a href="#" className="navbar__logo" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-          <div className="navbar__logo-icon">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <circle cx="14" cy="14" r="13" stroke="url(#grad1)" strokeWidth="2"/>
-              <path d="M8 10l6 8 6-8" stroke="url(#grad2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="grad1" x1="0" y1="0" x2="28" y2="28">
-                  <stop stopColor="#6c63ff"/>
-                  <stop offset="1" stopColor="#ff6584"/>
-                </linearGradient>
-                <linearGradient id="grad2" x1="0" y1="0" x2="28" y2="28">
-                  <stop stopColor="#6c63ff"/>
-                  <stop offset="1" stopColor="#ff6584"/>
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <span className="navbar__logo-text">Uni<span className="text-gradient">work</span></span>
+          <img
+            src="/uniwork-logo.png"
+            alt="Uniwork"
+            className="navbar__logo-img"
+          />
         </a>
 
         {/* Desktop Links */}

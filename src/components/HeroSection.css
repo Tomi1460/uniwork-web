@@ -283,6 +283,21 @@
   color: var(--text-muted);
 }
 
+/* Notification Icons */
+.hero__notif-icon {
+  flex-shrink: 0;
+}
+
+.hero__notif-icon--success {
+  color: #43e97b;
+  filter: drop-shadow(0 0 6px rgba(67, 233, 123, 0.4));
+}
+
+.hero__notif-icon--rocket {
+  color: var(--color-primary-light);
+  filter: drop-shadow(0 0 6px rgba(108, 99, 255, 0.4));
+}
+
 @media (max-width: 1024px) {
   .hero__visual {
     right: 2%;
