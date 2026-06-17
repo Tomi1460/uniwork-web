@@ -49,21 +49,6 @@ export default function HeroSection() {
             Descargar App
           </button>
         </div>
-
-        {/* Stats */}
-        <div className="hero__stats animate-fadeInUp delay-5">
-          {[
-            { value: '100%', label: 'Confiable' },
-            { value: '24/7', label: 'Disponibilidad' },
-            { value: '0', label: 'Costo inicial' },
-            { value: '+', label: 'Oportunidades' },
-          ].map((stat) => (
-            <div key={stat.label} className="hero__stat">
-              <span className="hero__stat-value">{stat.value}</span>
-              <span className="hero__stat-label">{stat.label}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Floating Cards Visual */}
