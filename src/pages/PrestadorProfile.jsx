@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Star, CheckCircle } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Star, CheckCircle, X, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 export default function PrestadorProfile() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const waId = searchParams.get('wa_id');
     const [servicio, setServicio] = useState(null);
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState(null);
+    const [showModal, setShowModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [requestSuccess, setRequestSuccess] = useState(false);
 
     // Hardcode of the bot number just like in PrestadoresList
     const botNumber = '5493435165239';
@@ -74,10 +78,28 @@ export default function PrestadorProfile() {
         );
     }
 
-    const providerName = servicio.prestador?.nombre_completo || 'Prestador Verificado';
-    const categoriaName = servicio.categorias?.nombre || 'Servicio';
-    const wsText = `Hola, quiero solicitar el servicio "${servicio.titulo}" de ${providerName} (${categoriaName}).`;
-    const wsLink = `https://wa.me/${botNumber}?text=${encodeURIComponent(wsText)}`;
+    const handleRequest = async () => {
+        if (!waId) {
+            alert('Falta información de usuario de WhatsApp. Vuelve a abrir el enlace que te envió el bot.');
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            const { data, error } = await supabase.rpc('crear_solicitud_whatsapp', {
+                p_servicio_id: servicio.servicio_id,
+                p_prestador_id: servicio.prestador.prestador_id,
+                p_wa_id: waId,
+                p_metodo_pago: 'DIGITAL'
+            });
+            if (error) throw error;
+            setRequestSuccess(true);
+        } catch (err) {
+            console.error("Error creating request:", err);
+            alert("Hubo un error al enviar tu solicitud. Intenta nuevamente.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
         <div style={{ minHeight: '100vh', background: '#f9fafb', paddingBottom: '4rem' }}>
@@ -168,14 +190,14 @@ export default function PrestadorProfile() {
                     justifyContent: 'center',
                     zIndex: 10
                 }}>
-                    <a 
-                        href={wsLink}
+                    <button 
+                        onClick={() => setShowModal(true)}
                         style={{
                             maxWidth: '800px',
                             width: '100%',
                             backgroundColor: '#25D366',
                             color: 'white',
-                            textDecoration: 'none',
+                            border: 'none',
                             padding: '1rem',
                             borderRadius: '0.5rem',
                             fontWeight: 'bold',
@@ -185,13 +207,68 @@ export default function PrestadorProfile() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '0.5rem',
-                            boxShadow: '0 4px 6px -1px rgba(37, 211, 102, 0.4)'
+                            boxShadow: '0 4px 6px -1px rgba(37, 211, 102, 0.4)',
+                            cursor: 'pointer'
                         }}
                     >
-                        Solicitar por WhatsApp
-                    </a>
+                        Solicitar Servicio
+                    </button>
                 </div>
             </main>
+
+            {/* Request Modal */}
+            {showModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '1rem'
+                }}>
+                    <div style={{
+                        backgroundColor: 'white', borderRadius: '1rem', padding: '2rem', maxWidth: '400px', width: '100%', position: 'relative'
+                    }}>
+                        {!requestSuccess && (
+                            <button onClick={() => setShowModal(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+                                <X size={20} />
+                            </button>
+                        )}
+                        
+                        {requestSuccess ? (
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ width: '4rem', height: '4rem', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                                    <Check size={32} />
+                                </div>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827', marginBottom: '0.5rem' }}>¡Solicitud enviada!</h3>
+                                <p style={{ color: '#4b5563', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                                    La solicitud se realizó con éxito. Te enviaremos un mensaje por WhatsApp una vez el prestador te acepte la solicitud.
+                                </p>
+                                <button 
+                                    onClick={() => navigate('/prestadores')}
+                                    style={{ width: '100%', backgroundColor: '#6c63ff', color: 'white', border: 'none', padding: '0.75rem', borderRadius: '0.5rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                >
+                                    Volver al catálogo
+                                </button>
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#111827', marginBottom: '1rem' }}>Confirmar Solicitud</h3>
+                                <p style={{ color: '#4b5563', marginBottom: '1rem', lineHeight: '1.5' }}>
+                                    ¿Estás seguro de solicitar este servicio?
+                                </p>
+                                <div style={{ backgroundColor: '#fffbeb', color: '#b45309', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1.5rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                                    Recordá que una vez que el prestador acepte, vas a tener que <strong>pagar 1 hora por adelantado</strong> del servicio. Si dura más de 1 hora se cobrará después de la revisión. Si después de la revisión aceptás el presupuesto, te reintegraremos el 100% del dinero de la revisión. ¡Muchas gracias por confiar en nosotros!
+                                </div>
+                                <button 
+                                    onClick={handleRequest}
+                                    disabled={isSubmitting}
+                                    style={{ 
+                                        width: '100%', backgroundColor: '#25D366', color: 'white', border: 'none', padding: '0.875rem', borderRadius: '0.5rem', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: isSubmitting ? 0.7 : 1
+                                    }}
+                                >
+                                    {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Enviando...</> : 'Sí, solicitar servicio'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

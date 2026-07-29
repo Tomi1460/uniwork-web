@@ -16,6 +16,7 @@ export default function PrestadoresList() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const rubroSlug = searchParams.get('rubro');
+    const waId = searchParams.get('wa_id');
     const categoria = SLUG_TO_CATEGORY[rubroSlug?.toLowerCase()] || rubroSlug;
 
     const [servicios, setServicios] = useState([]);
@@ -39,7 +40,7 @@ export default function PrestadoresList() {
                         precio_estimado,
                         imagen_url,
                         categorias!inner(nombre),
-                        prestadores(nombre_completo)
+                        prestadores(nombre_completo, usuario:usuarios(foto_perfil_url))
                     `)
                     .eq('esta_activo', true)
                     .ilike('categorias.nombre', categoria);
@@ -86,6 +87,7 @@ export default function PrestadoresList() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                         {servicios.map((srv) => {
                             const providerName = srv.prestadores?.nombre_completo || 'Prestador Verificado';
+                            const providerPhoto = srv.prestadores?.usuario?.foto_perfil_url;
                             const wsText = `Hola, quiero solicitar el servicio "${srv.titulo}" de ${providerName} (${categoria}).`;
                             const wsLink = `https://wa.me/${botNumber}?text=${encodeURIComponent(wsText)}`;
 
@@ -98,9 +100,17 @@ export default function PrestadoresList() {
                                     
                                     <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                                            <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', backgroundColor: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold', flexShrink: 0 }}>
-                                            {providerName.charAt(0).toUpperCase()}
-                                        </div>
+                                            {providerPhoto ? (
+                                                <img 
+                                                    src={providerPhoto} 
+                                                    alt={providerName}
+                                                    style={{ width: '3rem', height: '3rem', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', backgroundColor: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold', flexShrink: 0 }}>
+                                                    {providerName.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
                                         <div>
                                             <h3 style={{ fontWeight: 'bold', color: '#1f2937', fontSize: '1.1rem' }}>{providerName}</h3>
                                             <p style={{ color: '#6c63ff', fontSize: '0.875rem', fontWeight: '500' }}>{srv.titulo}</p>
@@ -118,14 +128,14 @@ export default function PrestadoresList() {
                                                 ${srv.precio_estimado ? Number(srv.precio_estimado).toLocaleString('es-AR') : 'A convenir'}
                                             </span>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                                             <button 
-                                                onClick={() => navigate(`/servicio/${srv.servicio_id}`)}
+                                                onClick={() => navigate(`/servicio/${srv.servicio_id}${waId ? `?wa_id=${waId}` : ''}`)}
                                                 style={{
                                                     flex: 1,
-                                                    backgroundColor: '#f3f4f6',
-                                                    color: '#374151',
-                                                    border: '1px solid #d1d5db',
+                                                    backgroundColor: '#25D366',
+                                                    color: 'white',
+                                                    border: 'none',
                                                     padding: '0.75rem',
                                                     borderRadius: '0.75rem',
                                                     fontWeight: 'bold',
@@ -133,22 +143,9 @@ export default function PrestadoresList() {
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                Ver Perfil
+                                                Ver y Solicitar
                                             </button>
-                                            <a 
-                                                href={wsLink}
-                                                style={{ 
-                                                    flex: 1,
-                                                    textAlign: 'center', 
-                                                    backgroundColor: '#25D366', color: 'white', padding: '0.75rem', 
-                                                    borderRadius: '0.75rem', fontWeight: 'bold', textDecoration: 'none',
-                                                    transition: 'background-color 0.2s'
-                                                }}
-                                                onMouseOver={(e) => e.target.style.backgroundColor = '#1ea952'}
-                                                onMouseOut={(e) => e.target.style.backgroundColor = '#25D366'}
-                                            >
-                                                WhatsApp
-                                            </a>
+
                                         </div>
                                     </div>
                                     </div>
