@@ -35,13 +35,12 @@ export default function PrestadoresList() {
                         servicio_id, 
                         titulo, 
                         descripcion, 
-                        precio_revision, 
-                        prestadores(
-                            usuarios:users(full_name)
-                        )
+                        precio_estimado,
+                        categorias!inner(nombre),
+                        prestadores(nombre_completo)
                     `)
-                    .eq('activo', true)
-                    .ilike('categoria', categoria);
+                    .eq('esta_activo', true)
+                    .ilike('categorias.nombre', categoria);
 
                 if (error) throw error;
                 setServicios(data || []);
@@ -84,7 +83,7 @@ export default function PrestadoresList() {
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                         {servicios.map((srv) => {
-                            const providerName = srv.prestadores?.usuarios?.full_name || 'Prestador Verificado';
+                            const providerName = srv.prestadores?.nombre_completo || 'Prestador Verificado';
                             const wsText = `Hola, quiero solicitar el servicio "${srv.titulo}" de ${providerName} (${categoria}).`;
                             const wsLink = `https://wa.me/${botNumber}?text=${encodeURIComponent(wsText)}`;
 
@@ -106,9 +105,9 @@ export default function PrestadoresList() {
 
                                     <div style={{ marginTop: 'auto' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid #f3f4f6' }}>
-                                            <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>Valor de Revisión</span>
+                                            <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>Valor Estimado</span>
                                             <span style={{ fontWeight: 'bold', color: '#111827' }}>
-                                                ${srv.precio_revision ? Number(srv.precio_revision).toLocaleString('es-AR') : 'A convenir'}
+                                                ${srv.precio_estimado ? Number(srv.precio_estimado).toLocaleString('es-AR') : 'A convenir'}
                                             </span>
                                         </div>
 
