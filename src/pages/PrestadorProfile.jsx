@@ -79,6 +79,9 @@ export default function PrestadorProfile() {
         );
     }
 
+    const providerName = servicio?.prestador?.nombre_completo || 'Prestador Verificado';
+    const categoriaName = servicio?.categorias?.nombre || 'Servicio';
+
     const handleRequest = async () => {
         if (!waId) {
             alert('Falta información de usuario de WhatsApp. Vuelve a abrir el enlace que te envió el bot.');
