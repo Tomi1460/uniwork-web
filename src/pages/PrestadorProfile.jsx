@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Star, CheckCircle, X, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
