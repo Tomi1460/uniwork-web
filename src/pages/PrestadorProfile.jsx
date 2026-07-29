@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Star, CheckCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 export default function PrestadorProfile() {
@@ -25,6 +26,7 @@ export default function PrestadorProfile() {
                         calificacion_promedio,
                         ubicacion_servicio,
                         fotos_urls,
+                        imagen_url,
                         esta_activo,
                         categorias!inner(nombre),
                         prestador:prestadores (
@@ -94,9 +96,14 @@ export default function PrestadorProfile() {
                 </div>
             </header>
 
-            <main style={{ maxWidth: '800px', margin: '2rem auto', padding: '0 1rem' }}>
+            <main style={{ maxWidth: '800px', margin: '0 auto', padding: '0 0 2rem 0' }}>
+                {/* Cover Image */}
+                <div style={{ width: '100%', height: '200px', backgroundColor: '#e5e7eb', backgroundImage: servicio.imagen_url ? `url(${servicio.imagen_url})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
+                    {!servicio.imagen_url && <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>Sin imagen de portada</div>}
+                </div>
+
                 {/* Profile Card */}
-                <div style={{ backgroundColor: 'white', borderRadius: '1rem', padding: '2rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
+                <div style={{ backgroundColor: 'white', borderRadius: '1rem', padding: '2rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', margin: '-3rem 1rem 2rem 1rem', position: 'relative', zIndex: 5 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}>
                         {servicio.prestador?.usuario?.foto_perfil_url ? (
                             <img 
@@ -114,11 +121,11 @@ export default function PrestadorProfile() {
                             <p style={{ color: '#6b7280', margin: 0, fontSize: '1rem' }}>Especialista en {categoriaName}</p>
                             
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', fontSize: '0.875rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#f59e0b', fontWeight: '600' }}>
-                                    ⭐ {servicio.prestador?.calificacion_promedio ? servicio.prestador.calificacion_promedio.toFixed(1) : 'Nuevo'}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#f59e0b', fontWeight: '600' }}>
+                                    <Star size={16} fill="currentColor" /> {servicio.prestador?.calificacion_promedio ? servicio.prestador.calificacion_promedio.toFixed(1) : 'Nuevo'}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#374151' }}>
-                                    ✅ {servicio.prestador?.trabajos_realizados || 0} trabajos realizados
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#374151' }}>
+                                    <CheckCircle size={16} /> {servicio.prestador?.trabajos_realizados || 0} trabajos realizados
                                 </div>
                             </div>
                         </div>
@@ -133,7 +140,7 @@ export default function PrestadorProfile() {
                         
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', backgroundColor: '#f9fafb', padding: '1rem', borderRadius: '0.75rem' }}>
                             <div>
-                                <span style={{ display: 'block', color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.25rem' }}>Costo Estimado</span>
+                                <span style={{ display: 'block', color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.25rem', lineHeight: '1.2' }}>Valor por hora de revisión</span>
                                 <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#111827' }}>
                                     ${servicio.precio_estimado ? Number(servicio.precio_estimado).toLocaleString('es-AR') : 'A convenir'}
                                 </span>

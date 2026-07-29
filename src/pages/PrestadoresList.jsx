@@ -37,6 +37,7 @@ export default function PrestadoresList() {
                         titulo, 
                         descripcion, 
                         precio_estimado,
+                        imagen_url,
                         categorias!inner(nombre),
                         prestadores(nombre_completo)
                     `)
@@ -89,9 +90,15 @@ export default function PrestadoresList() {
                             const wsLink = `https://wa.me/${botNumber}?text=${encodeURIComponent(wsText)}`;
 
                             return (
-                                <div key={srv.servicio_id} style={{ backgroundColor: 'white', borderRadius: '1rem', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                                        <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', backgroundColor: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold' }}>
+                                <div key={srv.servicio_id} style={{ backgroundColor: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    {/* Cover Image */}
+                                    <div style={{ width: '100%', height: '160px', backgroundColor: '#e5e7eb', backgroundImage: srv.imagen_url ? `url(${srv.imagen_url})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                                        {!srv.imagen_url && <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>Sin imagen de portada</div>}
+                                    </div>
+                                    
+                                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                            <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', backgroundColor: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold', flexShrink: 0 }}>
                                             {providerName.charAt(0).toUpperCase()}
                                         </div>
                                         <div>
@@ -106,8 +113,8 @@ export default function PrestadoresList() {
 
                                     <div style={{ marginTop: 'auto' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid #f3f4f6' }}>
-                                            <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>Valor Estimado</span>
-                                            <span style={{ fontWeight: 'bold', color: '#111827' }}>
+                                            <span style={{ color: '#6b7280', fontSize: '0.875rem', maxWidth: '60%', lineHeight: '1.2' }}>Valor por hora de revisión</span>
+                                            <span style={{ fontWeight: 'bold', color: '#111827', textAlign: 'right' }}>
                                                 ${srv.precio_estimado ? Number(srv.precio_estimado).toLocaleString('es-AR') : 'A convenir'}
                                             </span>
                                         </div>
@@ -143,6 +150,7 @@ export default function PrestadoresList() {
                                                 WhatsApp
                                             </a>
                                         </div>
+                                    </div>
                                     </div>
                                 </div>
                             );
