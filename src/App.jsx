@@ -16,6 +16,7 @@ import WhatsAppButton from './components/WhatsAppButton'
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardCliente = lazy(() => import('./pages/app/DashboardCliente'))
 const DashboardPrestador = lazy(() => import('./pages/app/DashboardPrestador'))
+const WhatsAppRedirectPage = lazy(() => import('./pages/WhatsAppRedirectPage'))
 
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -99,6 +100,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+            {/* MP WhatsApp Redirects */}
+            <Route path="/pago-exitoso" element={<WhatsAppRedirectPage />} />
+            <Route path="/pago-fallido" element={<WhatsAppRedirectPage />} />
+            <Route path="/pago-pendiente" element={<WhatsAppRedirectPage />} />
+            <Route path="/pago-presupuesto-exitoso" element={<WhatsAppRedirectPage />} />
+            <Route path="/pago-presupuesto-fallido" element={<WhatsAppRedirectPage />} />
+            <Route path="/pago-presupuesto-pendiente" element={<WhatsAppRedirectPage />} />
 
             {/* Catch all → back to landing */}
             <Route path="*" element={<Navigate to="/" replace />} />
