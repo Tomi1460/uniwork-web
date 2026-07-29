@@ -32,7 +32,7 @@ export default function PrestadoresList() {
                 const { data, error } = await supabase
                     .from('servicios')
                     .select(`
-                        id, 
+                        servicio_id, 
                         titulo, 
                         descripcion, 
                         precio_revision, 
@@ -89,7 +89,7 @@ export default function PrestadoresList() {
                             const wsLink = `https://wa.me/${botNumber}?text=${encodeURIComponent(wsText)}`;
 
                             return (
-                                <div key={srv.id} style={{ backgroundColor: 'white', borderRadius: '1rem', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column' }}>
+                                <div key={srv.servicio_id} style={{ backgroundColor: 'white', borderRadius: '1rem', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                                         <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', backgroundColor: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold' }}>
                                             {providerName.charAt(0).toUpperCase()}
