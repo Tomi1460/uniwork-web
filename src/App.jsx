@@ -18,6 +18,7 @@ const DashboardCliente = lazy(() => import('./pages/app/DashboardCliente'))
 const DashboardPrestador = lazy(() => import('./pages/app/DashboardPrestador'))
 const WhatsAppRedirectPage = lazy(() => import('./pages/WhatsAppRedirectPage'))
 const PrestadoresList = lazy(() => import('./pages/PrestadoresList'))
+const PrestadorProfile = lazy(() => import('./pages/PrestadorProfile'))
 
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -112,6 +113,7 @@ function App() {
 
             {/* Public List for WhatsApp Bot */}
             <Route path="/prestadores" element={<PrestadoresList />} />
+            <Route path="/servicio/:id" element={<PrestadorProfile />} />
 
             {/* Catch all → back to landing */}
             <Route path="*" element={<Navigate to="/" replace />} />

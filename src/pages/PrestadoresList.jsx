@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -14,6 +14,7 @@ const SLUG_TO_CATEGORY = {
 
 export default function PrestadoresList() {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const rubroSlug = searchParams.get('rubro');
     const categoria = SLUG_TO_CATEGORY[rubroSlug?.toLowerCase()] || rubroSlug;
 
@@ -110,20 +111,38 @@ export default function PrestadoresList() {
                                                 ${srv.precio_estimado ? Number(srv.precio_estimado).toLocaleString('es-AR') : 'A convenir'}
                                             </span>
                                         </div>
-
-                                        <a 
-                                            href={wsLink}
-                                            style={{ 
-                                                display: 'block', width: '100%', textAlign: 'center', 
-                                                backgroundColor: '#25D366', color: 'white', padding: '0.75rem', 
-                                                borderRadius: '0.75rem', fontWeight: 'bold', textDecoration: 'none',
-                                                transition: 'background-color 0.2s'
-                                            }}
-                                            onMouseOver={(e) => e.target.style.backgroundColor = '#1ea952'}
-                                            onMouseOut={(e) => e.target.style.backgroundColor = '#25D366'}
-                                        >
-                                            Solicitar por WhatsApp
-                                        </a>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button 
+                                                onClick={() => navigate(`/servicio/${srv.servicio_id}`)}
+                                                style={{
+                                                    flex: 1,
+                                                    backgroundColor: '#f3f4f6',
+                                                    color: '#374151',
+                                                    border: '1px solid #d1d5db',
+                                                    padding: '0.75rem',
+                                                    borderRadius: '0.75rem',
+                                                    fontWeight: 'bold',
+                                                    textAlign: 'center',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Ver Perfil
+                                            </button>
+                                            <a 
+                                                href={wsLink}
+                                                style={{ 
+                                                    flex: 1,
+                                                    textAlign: 'center', 
+                                                    backgroundColor: '#25D366', color: 'white', padding: '0.75rem', 
+                                                    borderRadius: '0.75rem', fontWeight: 'bold', textDecoration: 'none',
+                                                    transition: 'background-color 0.2s'
+                                                }}
+                                                onMouseOver={(e) => e.target.style.backgroundColor = '#1ea952'}
+                                                onMouseOut={(e) => e.target.style.backgroundColor = '#25D366'}
+                                            >
+                                                WhatsApp
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             );
