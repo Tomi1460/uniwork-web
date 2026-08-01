@@ -538,9 +538,28 @@ const AdminDashboard = () => {
 
   const handleResetConv = async (id) => {
     if (!confirm('¿Resetear la conversación de este cliente?')) return;
-    await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: {} }).eq('id', id);
-    addFeedItem('Conversación reseteada por admin', '🔄');
-    fetchConvActivas();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/reset-cliente/${id}`, { method: 'POST' });
+      if (!res.ok) throw new Error('Error al resetear en backend');
+      addFeedItem('Conversación reseteada y notificada', '🔄');
+      fetchConvActivas();
+    } catch(e) {
+      console.error(e);
+      alert('Error reseteando conversación: ' + e.message);
+    }
+  };
+
+  const handleEliminarSolicitud = async (id) => {
+    if (!confirm('¿Estás seguro de ELIMINAR/CANCELAR la solicitud activa de este cliente para ambos? Se le notificará al cliente por WhatsApp y podrá pedir otra.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/eliminar-solicitud/${id}`, { method: 'POST' });
+      if (!res.ok) throw new Error('Error al eliminar en backend');
+      addFeedItem('Solicitud eliminada y cliente notificado', '🗑️');
+      fetchConvActivas();
+    } catch(e) {
+      console.error(e);
+      alert('Error eliminando solicitud: ' + e.message);
+    }
   };
 
   const handleBloquearCliente = async (id, nombre) => {
@@ -863,6 +882,14 @@ const AdminDashboard = () => {
                             title="Resetear la conversación: vuelve al estado 'listo para pedir', útil si el cliente quedó atascado en un paso"
                             onClick={() => handleResetConv(c.id)}
                           ><RotateCcw size={12} />Resetear</button>
+                          {(c.datos_temporales?.solicitud_activa_id || c.datos_temporales?.solicitud_id) && (
+                            <button
+                              className="adm-btn adm-btn-danger"
+                              style={{ fontSize: '0.72rem', background: 'rgba(255,59,48,0.1)' }}
+                              title="Eliminar solicitud: Cancela la solicitud actual, saca al prestador, y reinicia al cliente para que pida otra vez"
+                              onClick={() => handleEliminarSolicitud(c.id)}
+                            ><Trash2 size={12} />Eliminar Sol.</button>
+                          )}
                           {c.bloqueado_por_deuda ? (
                             <button
                               className="adm-btn"
