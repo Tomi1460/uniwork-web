@@ -1,1613 +1,1319 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Users, Star, Mail, Phone, MapPin, Search, TrendingUp, AlertCircle, CheckCircle, MessageSquare, Send, X } from 'lucide-react';
-
-const AdminDashboard = () => {
-    const navigate = useNavigate();
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('pagos-pendientes');
-
-    // Estados para pagos pendientes
-    const [pagosPendientes, setPagosPendientes] = useState([]);
-    const [loadingPagos, setLoadingPagos] = useState(false);
-
-    // Estados para reportes
-    const [reportes, setReportes] = useState([]);
-    const [loadingReportes, setLoadingReportes] = useState(false);
-
-    // Estados para sub-tabs de reportes
-    const [activeReportTab, setActiveReportTab] = useState('servicios');
-
-    // Estados para Soporte
-    const [activeSupportTab, setActiveSupportTab] = useState('clientes');
-    const [supportTickets, setSupportTickets] = useState([]);
-    const [unreadMessages, setUnreadMessages] = useState(0); // Added missing state
-    const [loadingSupport, setLoadingSupport] = useState(false);
-    const [selectedTicket, setSelectedTicket] = useState(null);
-    const [ticketMessages, setTicketMessages] = useState([]);
-    const [adminMessage, setAdminMessage] = useState('');
-    const [sendingAdminMessage, setSendingAdminMessage] = useState(false);
-    const chatEndRef = useRef(null);
-
-
-    const [stats, setStats] = useState({
-        totalUsuarios: 0,
-        totalPrestadores: 0,
-        totalClientes: 0,
-        totalServicios: 0,
-        totalSolicitudes: 0,
-        totalTransacciones: 0,
-        montoTotalPendiente: 0,
-        montoTotalLiberado: 0
-    });
-
-    // Estados para Prestadores
-    const [prestadoresList, setPrestadoresList] = useState([]);
-    const [loadingPrestadores, setLoadingPrestadores] = useState(false);
-    const [prestadorSearch, setPrestadorSearch] = useState('');
-
-    useEffect(() => {
-        checkUser();
-    }, []);
-
-    const checkUser = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                navigate('/login');
-                return;
-            }
-
-            // Verificar si es admin
-            console.log(' Usuario Admin Actual:', user?.email); // DEBUG
-
-            // Allow debugging for now, or add more emails here if you want frontend protection
-            const allowedAdmins = [
-                'admin@uniwork.com.ar',
-                'ebersaldivia@gmail.com', 
-                'waltertomassaldiviablasco@gmail.com', 
-                'tomassaldiviawalter@gmail.com', 
-                'prueba@test.com'
-            ];
-
-            if (!allowedAdmins.includes(user.email)) {
-                console.warn('Usuario no autorizado en frontend:', user.email);
-                alert('No tienes permisos de administrador');
-                navigate('/');
-                return;
-            }
-
-            setUser(user);
-            await fetchData();
-        } catch (error) {
-            console.error('Error checking user:', error);
-            navigate('/login');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchData = async () => {
-        await Promise.all([
-            fetchPagosPendientes(),
-            fetchStats(),
-            fetchReportes(),
-            fetchPrestadores(),
-            fetchSupportTickets()
-        ]);
-    };
-
-    const fetchSupportTickets = async () => {
-        setLoadingSupport(true);
-        try {
-            const { data, error } = await supabase
-                .from('support_tickets')
-                .select(`
-                    ticket_id,
-                    usuario_id,
-                    estado,
-                    tipo,
-                    motivo,
-                    created_at,
-                    updated_at,
-                    usuario:usuarios(
-                        email,
-                        telefono,
-                        foto_perfil_url,
-                        cliente:clientes(nombre_completo),
-                        prestador:prestadores(nombre_completo)
-                    )
-                `)
-                .eq('estado', 'ABIERTO')
-                .order('updated_at', { ascending: false });
-
-            if (error) throw error;
-
-            console.log('Tickets data raw:', data);
-
-            // Calculate total unread messages across all tickets
-            let totalUnread = 0;
-
-            const processed = await Promise.all(data.map(async ticket => {
-                // Handle different response shapes (Array vs Object)
-                const clientData = ticket.usuario?.cliente;
-                const providerData = ticket.usuario?.prestador;
-
-                const clientObj = Array.isArray(clientData) ? clientData[0] : clientData;
-                const providerObj = Array.isArray(providerData) ? providerData[0] : providerData;
-
-                const clientName = clientObj?.nombre_completo;
-                const providerName = providerObj?.nombre_completo;
-
-                // Fetch unread count for this ticket
-                const { count: unreadCount } = await supabase
-                    .from('support_messages')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('ticket_id', ticket.ticket_id)
-                    .eq('es_admin', false)
-                    .eq('leido', false);
-
-                totalUnread += (unreadCount || 0);
-
-                return {
-                    ...ticket,
-                    nombre_usuario: clientName || providerName || 'Usuario Desconocido',
-                    email: ticket.usuario?.email || 'Sin Email', // Preservar email explicitamente
-                    es_cliente: !!clientData, // Usar la data directa para determinar tipo
-                    es_prestador: !!providerData,
-                    unread_count: unreadCount || 0
-                };
-            }));
-
-            console.log('Processed tickets:', processed);
-            console.log('Total unread:', totalUnread);
-
-            setUnreadMessages(totalUnread);
-            setSupportTickets(processed || []);
-        } catch (error) {
-            console.error('Error fetching tickets:', error);
-        } finally {
-            setLoadingSupport(false);
-        }
-    };
-
-    // Suscripción en tiempo real a nuevos tickets o cambios de estado
-    useEffect(() => {
-        const ticketSubscription = supabase
-            .channel('public:support_tickets')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, (payload) => {
-                console.log('Cambio en tickets detectado:', payload);
-                fetchSupportTickets(); // Recargar la lista completa para obtener los datos relacionales actualizados
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(ticketSubscription);
-        };
-    }, []);
-
-    const fetchTicketMessages = async (ticket) => {
-        setSelectedTicket(ticket);
-        try {
-            const { data, error } = await supabase
-                .from('support_messages')
-                .select('*')
-                .eq('ticket_id', ticket.ticket_id)
-                .order('created_at', { ascending: true });
-
-            if (error) throw error;
-            setTicketMessages(data || []);
-
-            await supabase
-                .from('support_messages')
-                .update({ leido: true })
-                .eq('ticket_id', ticket.ticket_id)
-                .eq('es_admin', false)
-                .eq('leido', false);
-
-            // Re-fetch tickets to update unread counts globally...
-            // fetchSupportTickets(); 
-            // OR optimize by just updating the local state count if we knew how many were read
-
-            // For now, let's just decrement the global counter by the number of unread messages in THIS ticket
-            // But we don't know the count here without fetching it first or passing it.
-            // Safer to just re-fetch everything for consistency, though it's an extra network call.
-            fetchSupportTickets();
-
-        } catch (error) {
-            console.error('Error fetching messages:', error);
-        }
-    };
-
-    const subscribeToMessages = (ticketId) => {
-        const subscription = supabase
-            .channel(`public:support_messages:ticket_id=eq.${ticketId}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `ticket_id=eq.${ticketId}` }, payload => {
-                setTicketMessages(prev => {
-                    if (prev.some(msg => msg.message_id === payload.new.message_id)) return prev;
-                    return [...prev, payload.new];
-                });
-                // Si el mensaje es del usuario, marcar como no leído en la lista de tickets o reproducir sonido (opcional)
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(subscription);
-        };
-    };
-
-    const handleSendAdminMessage = async (e) => {
-        e.preventDefault();
-        if (!adminMessage.trim() || !selectedTicket) return;
-        setSendingAdminMessage(true);
-
-        const messageToSend = adminMessage.trim();
-        const tempId = 'temp-' + Date.now();
-
-        // Optimistic UI
-        const optimisticMsg = {
-            message_id: tempId,
-            message: messageToSend,
-            created_at: new Date().toISOString(),
-            es_admin: true,
-            leido: false,
-            ticket_id: selectedTicket.ticket_id
-        };
-
-        setTicketMessages(prev => [...prev, optimisticMsg]);
-        setAdminMessage('');
-
-        try {
-            const { error } = await supabase
-                .from('support_messages')
-                .insert([{
-                    ticket_id: selectedTicket.ticket_id,
-                    message: messageToSend,
-                    es_admin: true,
-                    leido: false
-                }]);
-
-            if (error) throw error;
-
-            fetchTicketMessages(selectedTicket);
-
-            await supabase
-                .from('support_tickets')
-                .update({ updated_at: new Date().toISOString() })
-                .eq('ticket_id', selectedTicket.ticket_id);
-
-        } catch (error) {
-            console.error('Error sending message:', error);
-            alert('Error al enviar mensaje');
-            setTicketMessages(prev => prev.filter(msg => msg.message_id !== tempId));
-            setAdminMessage(messageToSend);
-        } finally {
-            setSendingAdminMessage(false);
-        }
-    };
-
-    const handleCloseTicket = async () => {
-        if (!selectedTicket) return;
-
-        if (!confirm('¿Estás seguro de finalizar esta consulta? El ticket se cerrará.')) return;
-
-        try {
-            const { error } = await supabase
-                .from('support_tickets')
-                .update({ estado: 'CERRADO' })
-                .eq('ticket_id', selectedTicket.ticket_id);
-
-            if (error) throw error;
-
-            alert('Consulta finalizada.');
-            setSelectedTicket(null);
-
-            // Wait slightly before refetching to ensure DB consistency
-            setTimeout(() => {
-                fetchSupportTickets();
-            }, 500);
-
-        } catch (error) {
-            console.error('Error closing ticket:', error);
-            alert('Error al cerrar ticket: ' + (error.message || 'Error desconocido'));
-        }
-    };
-
-    useEffect(() => {
-        if (selectedTicket) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [ticketMessages, selectedTicket]);
-
-    useEffect(() => {
-        if (selectedTicket) {
-            console.log('Admin subscribing to ticket:', selectedTicket.ticket_id);
-            const unsubscribe = subscribeToMessages(selectedTicket.ticket_id);
-            return () => {
-                console.log('Admin unsubscribing');
-                unsubscribe();
-            };
-        }
-    }, [selectedTicket?.ticket_id]);
-
-    const fetchPagosPendientes = async () => {
-        setLoadingPagos(true);
-        try {
-            const { data, error } = await supabase
-                .from('transacciones')
-                .select(`
-                transaccion_id,
-                monto_retenido,
-                fecha_liberacion_fondos,
-                solicitud_id,
-                solicitudes (
-                solicitud_id,
-                prestador_id,
-                servicio_id,
-                prestadores (
-                nombre_completo,
-                cuenta_bancaria_cbu,
-                cuenta_bancaria_alias,
-                cuenta_bancaria_titular,
-                mercadopago_email
-                ),
-                servicios (
-                titulo
-                )
-                )
-                `)
-                .eq('estado_garantia', 'PENDIENTE')
-                .lte('fecha_liberacion_fondos', new Date().toISOString())
-                .order('fecha_liberacion_fondos', { ascending: true });
-
-            if (error) {
-                console.error('Error completo:', error);
-                throw error;
-            }
-
-            console.log('Datos recibidos:', data);
-            setPagosPendientes(data || []);
-        } catch (error) {
-            console.error('Error fetching pagos pendientes:', error);
-            alert('Error al cargar pagos: ' + error.message);
-        } finally {
-            setLoadingPagos(false);
-        }
-    };
-
-    const fetchStats = async () => {
-        try {
-            // Total Prestadores
-            const { count: prestadores } = await supabase
-                .from('prestadores')
-                .select('*', { count: 'exact', head: true });
-
-            // Total Clientes
-            const { count: clientes } = await supabase
-                .from('clientes')
-                .select('*', { count: 'exact', head: true });
-
-            setStats({
-                totalUsuarios: (clientes || 0) + (prestadores || 0),
-                totalPrestadores: prestadores || 0,
-                totalClientes: clientes || 0
-            });
-        } catch (error) {
-            console.error('Error fetching stats:', error);
-        }
-    };
-
-    const fetchPrestadores = async () => {
-        setLoadingPrestadores(true);
-        try {
-            const { data, error } = await supabase
-                .from('prestadores')
-                .select(`
-                *,
-                usuario:usuarios!inner(email, foto_perfil_url, telefono)
-                `);
-
-            if (error) throw error;
-
-            // Ordenamiento: 1. Calificación (Desc), 2. Nombre (Asc)
-            const sorted = data.sort((a, b) => {
-                const ratA = a.calificacion_promedio || 0;
-                const ratB = b.calificacion_promedio || 0;
-                if (ratB !== ratA) return ratB - ratA;
-                return (a.nombre_completo || '').localeCompare(b.nombre_completo || '');
-            });
-
-            setPrestadoresList(sorted);
-        } catch (error) {
-            console.error('Error fetching prestadores:', error);
-        } finally {
-            setLoadingPrestadores(false);
-        }
-    };
-
-
-
-    const fetchReportes = async () => {
-        setLoadingReportes(true);
-        try {
-            const { data, error } = await supabase
-                .from('reportes_servicios')
-                .select(`
-                *,
-                cliente:clientes!reportes_servicios_cliente_id_fkey (
-                nombre_completo,
-                cliente_id
-                ),
-                prestador:prestadores!reportes_servicios_prestador_id_fkey (
-                nombre_completo,
-                prestador_id
-                ),
-                servicio:servicios!reportes_servicios_servicio_id_fkey (
-                titulo
-                )
-                `)
-                .order('fecha_reporte', { ascending: false });
-
-            if (error) throw error;
-
-            setReportes(data || []);
-        } catch (error) {
-            console.error('Error fetching reportes:', error);
-        } finally {
-            setLoadingReportes(false);
-        }
-    };
-
-    const handleCambiarEstadoReporte = async (reporteId, nuevoEstado) => {
-        try {
-            const { error } = await supabase
-                .from('reportes_servicios')
-                .update({
-                    estado: nuevoEstado,
-                    fecha_resolucion: nuevoEstado === 'RESUELTO' ? new Date().toISOString() : null
-                })
-                .eq('reporte_id', reporteId);
-
-            if (error) throw error;
-
-            // Actualizar lista
-            await fetchReportes();
-            alert('Estado del reporte actualizado correctamente');
-        } catch (error) {
-            console.error('Error actualizando reporte:', error);
-            alert('Error al actualizar el reporte');
-        }
-    };
-
-    const handleAgregarNotasAdmin = async (reporteId) => {
-        const notas = prompt('Agregar notas del administrador:');
-        if (!notas) return;
-
-        try {
-            const { error } = await supabase
-                .from('reportes_servicios')
-                .update({ notas_admin: notas })
-                .eq('reporte_id', reporteId);
-
-            if (error) throw error;
-
-            await fetchReportes();
-            alert('Notas agregadas correctamente');
-        } catch (error) {
-            console.error('Error agregando notas:', error);
-            alert('Error al agregar notas');
-        }
-    };
-
-    const handleProcesarPago = async (transaccion) => {
-        if (!confirm(`¿Confirmar transferencia de $${transaccion.monto_retenido} a ${transaccion.solicitudes.prestadores.nombre_completo}?`)) {
-            return;
-        }
-
-        try {
-            // Llamar a la función de Supabase para confirmar la transferencia
-            const { error } = await supabase.rpc('confirmar_transferencia_realizada', {
-                p_transaccion_id: transaccion.transaccion_id
-            });
-
-            if (error) throw error;
-
-            alert('Pago procesado exitosamente');
-            await fetchData(); // Refrescar datos
-        } catch (error) {
-            console.error('Error procesando pago:', error);
-            alert('Error al procesar el pago: ' + error.message);
-        }
-    };
-
-    const handleCopiarDatos = (pago) => {
-        const prestador = pago.solicitudes.prestadores;
-        const datos = `💰 DATOS DE TRANSFERENCIA
-                ━━━━━━━━━━━━━━━━━━━━━━
-                Monto: $${parseFloat(pago.monto_retenido).toFixed(2)}
-                Titular: ${prestador.cuenta_bancaria_titular || 'N/A'}
-                CBU: ${prestador.cuenta_bancaria_cbu || 'N/A'}
-                Alias: ${prestador.cuenta_bancaria_alias || 'N/A'}
-                Servicio: ${pago.solicitudes.servicios?.titulo || 'N/A'}
-                ━━━━━━━━━━━━━━━━━━━━━━`;
-
-        navigator.clipboard.writeText(datos).then(() => {
-            alert('✅ Datos copiados al portapapeles');
-        }).catch(err => {
-            console.error('Error al copiar:', err);
-            alert('❌ Error al copiar. Intenta manualmente.');
-        });
-    };
-
-    const handleAbrirMercadoPago = () => {
-        // Intenta abrir la app de Mercado Pago (Android/iOS)
-        const appUrl = 'mercadopago://';
-        const webUrl = 'https://www.mercadopago.com.ar/';
-
-        // Intenta abrir la app primero
-        window.location.href = appUrl;
-
-        // Si no se abre la app en 1 segundo, abre la web
-        setTimeout(() => {
-            window.open(webUrl, '_blank');
-        }, 1000);
-    };
-
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        navigate('/login');
-    };
-
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-                <div>Cargando...</div>
-            </div>
-        );
-    }
-
-    return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
-            {/* Header */}
-            <div style={{
-                backgroundColor: '#1a1a2e',
-                color: 'white',
-                padding: '20px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}>
-                <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h1 style={{ margin: 0, fontSize: '24px' }}>🔧 Panel Administrativo - Uniwork</h1>
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            padding: '10px 20px',
-                            backgroundColor: '#e74c3c',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Cerrar Sesión
-                    </button>
-                </div>
-            </div>
-
-            <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
-                {/* Tabs */}
-                <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', borderBottom: '2px solid #ddd' }}>
-                    <button
-                        onClick={() => setActiveTab('pagos-pendientes')}
-                        style={{
-                            padding: '15px 30px',
-                            backgroundColor: activeTab === 'pagos-pendientes' ? '#1a1a2e' : 'transparent',
-                            color: activeTab === 'pagos-pendientes' ? 'white' : '#333',
-                            border: 'none',
-                            borderRadius: '5px 5px 0 0',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            position: 'relative'
-                        }}
-                    >
-                        💰 Pagos Pendientes
-                        {pagosPendientes.length > 0 && (
-                            <span style={{
-                                position: 'absolute',
-                                top: '5px',
-                                right: '5px',
-                                backgroundColor: '#e74c3c',
-                                color: 'white',
-                                borderRadius: '50%',
-                                width: '20px',
-                                height: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '12px'
-                            }}>
-                                {pagosPendientes.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('reportes')}
-                        style={{
-                            padding: '15px 30px',
-                            backgroundColor: activeTab === 'reportes' ? '#1a1a2e' : 'transparent',
-                            color: activeTab === 'reportes' ? 'white' : '#333',
-                            border: 'none',
-                            borderRadius: '5px 5px 0 0',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            position: 'relative'
-                        }}
-                    >
-                        🚨 Reportes
-                        {reportes.filter(r => r.estado === 'PENDIENTE').length > 0 && (
-                            <span style={{
-                                position: 'absolute',
-                                top: '5px',
-                                right: '5px',
-                                backgroundColor: '#e74c3c',
-                                color: 'white',
-                                borderRadius: '50%',
-                                width: '20px',
-                                height: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '12px'
-                            }}>
-                                {reportes.filter(r => r.estado === 'PENDIENTE').length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('soporte')}
-                        style={{
-                            padding: '15px 30px',
-                            backgroundColor: activeTab === 'soporte' ? '#1a1a2e' : 'transparent',
-                            color: activeTab === 'soporte' ? 'white' : '#333',
-                            border: 'none',
-                            borderRadius: '5px 5px 0 0',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            position: 'relative'
-                        }}
-                    >
-                        <MessageSquare size={18} /> Soporte
-                        {unreadMessages > 0 && (
-                            <span style={{
-                                position: 'absolute',
-                                top: '5px',
-                                right: '5px',
-                                backgroundColor: '#e74c3c',
-                                color: 'white',
-                                borderRadius: '50%',
-                                width: '20px',
-                                height: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '12px'
-                            }}>
-                                {unreadMessages}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('prestadores')}
-                        style={{
-                            padding: '15px 30px',
-                            backgroundColor: activeTab === 'prestadores' ? '#1a1a2e' : 'transparent',
-                            color: activeTab === 'prestadores' ? 'white' : '#333',
-                            border: 'none',
-                            borderRadius: '5px 5px 0 0',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
-                        }}
-                    >
-                        <Users size={18} /> Prestadores
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('estadisticas')}
-                        style={{
-                            padding: '15px 30px',
-                            backgroundColor: activeTab === 'estadisticas' ? '#1a1a2e' : 'transparent',
-                            color: activeTab === 'estadisticas' ? 'white' : '#333',
-                            border: 'none',
-                            borderRadius: '5px 5px 0 0',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        📊 Estadísticas
-                    </button>
-                </div>
-
-                {/* Contenido de Pagos Pendientes */}
-                {activeTab === 'pagos-pendientes' && (
-                    <div>
-                        <div style={{
-                            backgroundColor: 'white',
-                            padding: '20px',
-                            borderRadius: '10px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            marginBottom: '20px'
-                        }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h2 style={{ margin: 0 }}>Pagos Listos para Transferir</h2>
-                                <button
-                                    onClick={fetchPagosPendientes}
-                                    disabled={loadingPagos}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: '#3498db',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '5px',
-                                        cursor: loadingPagos ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
-                                    {loadingPagos ? 'Actualizando...' : '🔄 Actualizar'}
-                                </button>
-                            </div>
-
-                            {loadingPagos ? (
-                                <div style={{ textAlign: 'center', padding: '40px' }}>Cargando...</div>
-                            ) : pagosPendientes.length === 0 ? (
-                                <div style={{
-                                    textAlign: 'center',
-                                    padding: '40px',
-                                    backgroundColor: '#f0f0f0',
-                                    borderRadius: '10px'
-                                }}>
-                                    <p style={{ fontSize: '18px', color: '#666' }}>✅ No hay pagos pendientes de procesar</p>
-                                </div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                    {pagosPendientes.map((pago) => (
-                                        <div
-                                            key={pago.transaccion_id}
-                                            style={{
-                                                border: '2px solid #e0e0e0',
-                                                borderRadius: '10px',
-                                                padding: '20px',
-                                                backgroundColor: '#fafafa',
-                                                transition: 'all 0.3s',
-                                                cursor: 'pointer'
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.borderColor = '#3498db';
-                                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.borderColor = '#e0e0e0';
-                                                e.currentTarget.style.boxShadow = 'none';
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <h3 style={{ margin: '0 0 10px 0', color: '#1a1a2e' }}>
-                                                        {pago.solicitudes.prestadores.nombre_completo}
-                                                    </h3>
-                                                    <p style={{ margin: '5px 0', color: '#666' }}>
-                                                        <strong>Servicio:</strong> {pago.solicitudes.servicios?.titulo || 'N/A'}
-                                                    </p>
-                                                    <p style={{ margin: '5px 0', color: '#666' }}>
-                                                        <strong>CBU:</strong> {pago.solicitudes.prestadores.cuenta_bancaria_cbu || 'No disponible'}
-                                                    </p>
-                                                    <p style={{ margin: '5px 0', color: '#666' }}>
-                                                        <strong>Alias:</strong> {pago.solicitudes.prestadores.cuenta_bancaria_alias || 'No disponible'}
-                                                    </p>
-                                                    <p style={{ margin: '5px 0', color: '#666' }}>
-                                                        <strong>Titular:</strong> {pago.solicitudes.prestadores.cuenta_bancaria_titular || 'No disponible'}
-                                                    </p>
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <div style={{
-                                                        fontSize: '32px',
-                                                        fontWeight: 'bold',
-                                                        color: '#27ae60',
-                                                        marginBottom: '10px'
-                                                    }}>
-                                                        ${parseFloat(pago.monto_retenido).toFixed(2)}
-                                                    </div>
-
-                                                    {/* Botones de ayuda */}
-                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                                                        <button
-                                                            onClick={() => handleCopiarDatos(pago)}
-                                                            style={{
-                                                                padding: '8px 16px',
-                                                                backgroundColor: '#3498db',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '5px',
-                                                                cursor: 'pointer',
-                                                                fontSize: '14px',
-                                                                flex: 1
-                                                            }}
-                                                        >
-                                                            📋 Copiar Datos
-                                                        </button>
-                                                        <button
-                                                            onClick={handleAbrirMercadoPago}
-                                                            style={{
-                                                                padding: '8px 16px',
-                                                                backgroundColor: '#00a8e8',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                borderRadius: '5px',
-                                                                cursor: 'pointer',
-                                                                fontSize: '14px',
-                                                                flex: 1
-                                                            }}
-                                                        >
-                                                            💰 Abrir MP
-                                                        </button>
-                                                    </div>
-
-                                                    {/* Botón principal */}
-                                                    <button
-                                                        onClick={() => handleProcesarPago(pago)}
-                                                        style={{
-                                                            padding: '12px 24px',
-                                                            backgroundColor: '#27ae60',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            fontWeight: 'bold',
-                                                            fontSize: '16px',
-                                                            width: '100%'
-                                                        }}
-                                                    >
-                                                        ✅ Confirmar Pago
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Contenido de Reportes */}
-                {activeTab === 'reportes' && (
-                    <div>
-                        <div style={{
-                            backgroundColor: 'white',
-                            padding: '20px',
-                            borderRadius: '10px',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            marginBottom: '20px'
-                        }}>
-                            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                                <button
-                                    onClick={() => setActiveReportTab('servicios')}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: activeReportTab === 'servicios' ? '#3498db' : '#f0f0f0',
-                                        color: activeReportTab === 'servicios' ? 'white' : '#333',
-                                        border: 'none',
-                                        borderRadius: '5px',
-                                        cursor: 'pointer',
-                                        fontWeight: 'bold'
-                                    }}
-                                >
-                                    🛠️ Reportes Servicios
-                                </button>
-                                <button
-                                    onClick={() => setActiveReportTab('antecedentes')}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: activeReportTab === 'antecedentes' ? '#3498db' : '#f0f0f0',
-                                        color: activeReportTab === 'antecedentes' ? 'white' : '#333',
-                                        border: 'none',
-                                        borderRadius: '5px',
-                                        cursor: 'pointer',
-                                        fontWeight: 'bold'
-                                    }}
-                                >
-                                    📋 Reportes Antecedentes
-                                </button>
-                            </div>
-
-                            {activeReportTab === 'servicios' && (
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                        <h2 style={{ margin: 0 }}>Gestión de Reportes</h2>
-                                        <button
-                                            onClick={fetchReportes}
-                                            disabled={loadingReportes}
-                                            style={{
-                                                padding: '10px 20px',
-                                                backgroundColor: '#3498db',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '5px',
-                                                cursor: loadingReportes ? 'not-allowed' : 'pointer'
-                                            }}
-                                        >
-                                            {loadingReportes ? 'Actualizando...' : '🔄 Actualizar'}
-                                        </button>
-                                    </div>
-
-                                    {loadingReportes ? (
-                                        <div style={{ textAlign: 'center', padding: '40px' }}>Cargando reportes...</div>
-                                    ) : reportes.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#f0f0f0', borderRadius: '10px' }}>
-                                            <p style={{ fontSize: '18px', color: '#666' }}>✅ No hay reportes registrados</p>
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            {reportes.map((reporte) => (
-                                                <div key={reporte.reporte_id} style={{
-                                                    border: '2px solid',
-                                                    borderColor: reporte.estado === 'PENDIENTE' ? '#e74c3c' : '#e0e0e0',
-                                                    borderRadius: '10px',
-                                                    padding: '20px',
-                                                    backgroundColor: '#fafafa'
-                                                }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                                                        <div>
-                                                            <span style={{
-                                                                padding: '5px 10px',
-                                                                borderRadius: '15px',
-                                                                backgroundColor: reporte.estado === 'PENDIENTE' ? '#e74c3c' :
-                                                                    reporte.estado === 'RESUELTO' ? '#27ae60' :
-                                                                        reporte.estado === 'EN_REVISION' ? '#f39c12' : '#95a5a6',
-                                                                color: 'white',
-                                                                fontSize: '12px',
-                                                                fontWeight: 'bold',
-                                                                textTransform: 'uppercase'
-                                                            }}>
-                                                                {reporte.estado}
-                                                            </span>
-                                                            <span style={{ marginLeft: '10px', color: '#666', fontSize: '14px' }}>
-                                                                📅 {new Date(reporte.fecha_reporte).toLocaleDateString()} {new Date(reporte.fecha_reporte).toLocaleTimeString()}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontWeight: 'bold', color: '#666' }}>
-                                                            ID: #{reporte.reporte_id}
-                                                        </div>
-                                                    </div>
-
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                                                        <div>
-                                                            <h4 style={{ margin: '0 0 10px 0', color: '#1a1a2e' }}>📝 Detalle del Reporte</h4>
-                                                            <p><strong>Motivo:</strong> {reporte.motivo}</p>
-                                                            <p><strong>Descripción:</strong> {reporte.descripcion || 'Sin descripción'}</p>
-                                                            <p><strong>Servicio:</strong> {reporte.servicio?.titulo || 'N/A'}</p>
-                                                        </div>
-                                                        <div>
-                                                            <h4 style={{ margin: '0 0 10px 0', color: '#1a1a2e' }}>👤 Involucrados</h4>
-                                                            <p><strong>Reportante (Cliente):</strong> {reporte.cliente?.nombre_completo || 'N/A'}</p>
-                                                            <p><strong>Reportado (Prestador):</strong> {reporte.prestador?.nombre_completo || 'N/A'}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    {reporte.notas_admin && (
-                                                        <div style={{ backgroundColor: '#fff3cd', padding: '10px', borderRadius: '5px', marginBottom: '15px', borderLeft: '4px solid #ffc107' }}>
-                                                            <strong>👮 Notas Admin:</strong> {reporte.notas_admin}
-                                                        </div>
-                                                    )}
-
-                                                    <div style={{ display: 'flex', gap: '10px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                                                        <select
-                                                            defaultValue=""
-                                                            onChange={(e) => {
-                                                                if (e.target.value) handleCambiarEstadoReporte(reporte.reporte_id, e.target.value);
-                                                            }}
-                                                            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}
-                                                        >
-                                                            <option value="" disabled>Cambiar Estado...</option>
-                                                            <option value="PENDIENTE">Pendiente</option>
-                                                            <option value="EN_REVISION">En Revisión</option>
-                                                            <option value="RESUELTO">Resuelto</option>
-                                                            <option value="RECHAZADO">Rechazado</option>
-                                                        </select>
-
-                                                        <button
-                                                            onClick={() => handleAgregarNotasAdmin(reporte.reporte_id)}
-                                                            style={{
-                                                                padding: '8px 16px',
-                                                                backgroundColor: '#f1c40f',
-                                                                color: '#333',
-                                                                border: 'none',
-                                                                borderRadius: '5px',
-                                                                cursor: 'pointer',
-                                                                fontWeight: 'bold'
-                                                            }}
-                                                        >
-                                                            📝 Notas
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {activeReportTab === 'antecedentes' && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', height: '600px' }}>
-                                    {/* Lista de Tickets Antecedentes */}
-                                    <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                        <div style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <h3 style={{ margin: 0, fontSize: '16px' }}>Tickets Antecedentes</h3>
-                                            <button onClick={fetchSupportTickets} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#3498db' }}>🔄</button>
-                                        </div>
-                                        <div style={{ flex: 1, overflowY: 'auto' }}>
-                                            {loadingSupport ? (
-                                                <div style={{ padding: '20px', textAlign: 'center' }}>Cargando...</div>
-                                            ) : supportTickets.filter(t => t.tipo === 'ANTECEDENTES').length === 0 ? (
-                                                <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No hay reportes de antecedentes.</div>
-                                            ) : (
-                                                supportTickets.filter(t => t.tipo === 'ANTECEDENTES').map(ticket => (
-                                                    <div
-                                                        key={ticket.ticket_id}
-                                                        onClick={() => fetchTicketMessages(ticket)}
-                                                        style={{
-                                                            padding: '15px',
-                                                            borderBottom: '1px solid #eee',
-                                                            cursor: 'pointer',
-                                                            backgroundColor: selectedTicket?.ticket_id === ticket.ticket_id ? '#e3f2fd' : 'white',
-                                                            transition: 'background 0.2s',
-                                                            position: 'relative'
-                                                        }}
-                                                    >
-                                                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '5px' }}>
-                                                            {ticket.nombre_usuario}
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: '#e67e22', fontWeight: 'bold', marginBottom: '5px' }}>
-                                                            ⚠️ {ticket.motivo}
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>{ticket.email}</div>
-                                                        <div style={{ fontSize: '11px', color: '#999' }}>
-                                                            {new Date(ticket.updated_at).toLocaleDateString()} {new Date(ticket.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </div>
-                                                        {ticket.unread_count > 0 && (
-                                                            <span style={{ position: 'absolute', top: '15px', right: '15px', backgroundColor: '#e74c3c', color: 'white', borderRadius: '50%', width: '18px', height: '18px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                {ticket.unread_count}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Vista de Chat (Reutilizada de soporte) */}
-                                    <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                        {selectedTicket && selectedTicket.tipo === 'ANTECEDENTES' ? (
-                                            <>
-                                                <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fa' }}>
-                                                    <div>
-                                                        <h3 style={{ margin: 0 }}>{selectedTicket.nombre_usuario}</h3>
-                                                        <span style={{ fontSize: '12px', color: '#e67e22', fontWeight: 'bold' }}>📋 Reporte Antecedentes</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={handleCloseTicket}
-                                                        style={{
-                                                            padding: '8px 16px',
-                                                            backgroundColor: '#e74c3c',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            borderRadius: '5px',
-                                                            cursor: 'pointer',
-                                                            fontSize: '12px',
-                                                            fontWeight: 'bold'
-                                                        }}
-                                                    >
-                                                        Cerrar Reporte
-                                                    </button>
-                                                </div>
-
-                                                <div style={{ flex: 1, padding: '20px', overflowY: 'auto', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                    {ticketMessages.map(msg => (
-                                                        <div key={msg.message_id} style={{
-                                                            alignSelf: msg.es_admin ? 'flex-end' : 'flex-start',
-                                                            maxWidth: '70%',
-                                                            backgroundColor: msg.es_admin ? '#3498db' : 'white',
-                                                            color: msg.es_admin ? 'white' : '#333',
-                                                            padding: '12px',
-                                                            borderRadius: '10px',
-                                                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                                            borderBottomRightRadius: msg.es_admin ? '0' : '10px',
-                                                            borderBottomLeftRadius: msg.es_admin ? '10px' : '0'
-                                                        }}>
-                                                            <div>{msg.message}</div>
-                                                            <div style={{ fontSize: '10px', marginTop: '5px', opacity: 0.8, textAlign: 'right' }}>
-                                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    <div ref={chatEndRef} />
-                                                </div>
-
-                                                <form onSubmit={handleSendAdminMessage} style={{ padding: '15px', borderTop: '1px solid #eee', display: 'flex', gap: '10px' }}>
-                                                    <input
-                                                        type="text"
-                                                        value={adminMessage}
-                                                        onChange={(e) => setAdminMessage(e.target.value)}
-                                                        placeholder="Responder al prestador..."
-                                                        style={{ flex: 1, padding: '10px', borderRadius: '5px', border: '1px solid #ddd' }}
-                                                    />
-                                                    <button
-                                                        type="submit"
-                                                        disabled={sendingAdminMessage || !adminMessage.trim()}
-                                                        style={{ padding: '10px 20px', backgroundColor: '#3498db', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-                                                    >
-                                                        <Send size={18} />
-                                                    </button>
-                                                </form>
-                                            </>
-                                        ) : (
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-                                                <AlertCircle size={48} style={{ marginBottom: '10px', opacity: 0.5 }} />
-                                                <p>Selecciona un reporte de antecedentes para revisar</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Contenido de Estadísticas */}
-
-                {/* Contenido de Soporte */}
-                {activeTab === 'soporte' && (
-                    <div>
-                        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                            <button
-                                onClick={() => setActiveSupportTab('clientes')}
-                                style={{
-                                    padding: '10px 20px',
-                                    backgroundColor: activeSupportTab === 'clientes' ? '#3498db' : '#f0f0f0',
-                                    color: activeSupportTab === 'clientes' ? 'white' : '#333',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    cursor: 'pointer',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                👤 Clientes
-                            </button>
-                            <button
-                                onClick={() => setActiveSupportTab('prestadores')}
-                                style={{
-                                    padding: '10px 20px',
-                                    backgroundColor: activeSupportTab === 'prestadores' ? '#3498db' : '#f0f0f0',
-                                    color: activeSupportTab === 'prestadores' ? 'white' : '#333',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    cursor: 'pointer',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                🔧 Prestadores
-                            </button>
-                        </div>
-
-                        {activeSupportTab === 'clientes' && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', height: '600px' }}>
-                                {/* Lista de Tickets */}
-                                <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h3 style={{ margin: 0, fontSize: '16px' }}>Chats Activos (Clientes)</h3>
-                                        <button onClick={fetchSupportTickets} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#3498db' }}>🔄</button>
-                                    </div>
-                                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                                        {loadingSupport ? (
-                                            <div style={{ padding: '20px', textAlign: 'center' }}>Cargando...</div>
-                                        ) : supportTickets.filter(t => t.es_cliente && (t.tipo === 'SOPORTE' || !t.tipo)).length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No hay chats de clientes activos.</div>
-                                        ) : (
-                                            supportTickets.filter(t => t.es_cliente && (t.tipo === 'SOPORTE' || !t.tipo)).map(ticket => (
-                                                <div
-                                                    key={ticket.ticket_id}
-                                                    onClick={() => fetchTicketMessages(ticket)}
-                                                    style={{
-                                                        padding: '15px',
-                                                        borderBottom: '1px solid #eee',
-                                                        cursor: 'pointer',
-                                                        backgroundColor: selectedTicket?.ticket_id === ticket.ticket_id ? '#e3f2fd' : 'white',
-                                                        transition: 'background 0.2s',
-                                                        position: 'relative'
-                                                    }}
-                                                >
-                                                    <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '5px' }}>
-                                                        {ticket.es_cliente ? ticket.email : ticket.nombre_usuario}
-                                                    </div>
-                                                    {ticket.es_prestador && (
-                                                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>{ticket.email}</div>
-                                                    )}
-                                                    <div style={{ fontSize: '12px', color: '#666' }}>
-                                                        {new Date(ticket.updated_at).toLocaleDateString()} {new Date(ticket.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Vista de Chat */}
-                                <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                    {selectedTicket ? (
-                                        <>
-                                            <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fa' }}>
-                                                <div>
-                                                    <h3 style={{ margin: 0 }}>{selectedTicket.nombre_usuario}</h3>
-                                                    <span style={{ fontSize: '12px', color: '#27ae60' }}>● Chat Abierto</span>
-                                                </div>
-                                                <button
-                                                    onClick={handleCloseTicket}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        backgroundColor: '#e74c3c',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '5px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '12px',
-                                                        fontWeight: 'bold'
-                                                    }}
-                                                >
-                                                    Finalizar Consulta
-                                                </button>
-                                            </div>
-
-                                            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                {ticketMessages.map(msg => (
-                                                    <div key={msg.message_id} style={{
-                                                        alignSelf: msg.es_admin ? 'flex-end' : 'flex-start',
-                                                        maxWidth: '70%',
-                                                        backgroundColor: msg.es_admin ? '#3498db' : 'white',
-                                                        color: msg.es_admin ? 'white' : '#333',
-                                                        padding: '12px',
-                                                        borderRadius: '10px',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                                        borderBottomRightRadius: msg.es_admin ? '0' : '10px',
-                                                        borderBottomLeftRadius: msg.es_admin ? '10px' : '0'
-                                                    }}>
-                                                        <div>{msg.message}</div>
-                                                        <div style={{ fontSize: '10px', marginTop: '5px', opacity: 0.8, textAlign: 'right' }}>
-                                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                <div ref={chatEndRef} />
-                                            </div>
-
-                                            <form onSubmit={handleSendAdminMessage} style={{ padding: '15px', borderTop: '1px solid #eee', display: 'flex', gap: '10px' }}>
-                                                <input
-                                                    type="text"
-                                                    value={adminMessage}
-                                                    onChange={(e) => setAdminMessage(e.target.value)}
-                                                    placeholder="Escribe una respuesta..."
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '5px',
-                                                        border: '1px solid #ddd'
-                                                    }}
-                                                />
-                                                <button
-                                                    type="submit"
-                                                    disabled={sendingAdminMessage || !adminMessage.trim()}
-                                                    style={{
-                                                        padding: '10px 20px',
-                                                        backgroundColor: '#3498db',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '5px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    <Send size={18} />
-                                                </button>
-                                            </form>
-                                        </>
-                                    ) : (
-                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-                                            <MessageSquare size={48} style={{ marginBottom: '10px', opacity: 0.5 }} />
-                                            <p>Selecciona un chat para comenzar</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeSupportTab === 'prestadores' && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', height: '600px' }}>
-                                {/* Lista de Tickets Prestadores */}
-                                <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                    <div style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#f8f9fa', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <h3 style={{ margin: 0, fontSize: '16px' }}>Chats Activos (Prestadores)</h3>
-                                        <button onClick={fetchSupportTickets} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#3498db' }}>🔄</button>
-                                    </div>
-                                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                                        {loadingSupport ? (
-                                            <div style={{ padding: '20px', textAlign: 'center' }}>Cargando...</div>
-                                        ) : supportTickets.filter(t => t.es_prestador && (t.tipo === 'SOPORTE' || !t.tipo)).length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No hay chats de prestadores activos.</div>
-                                        ) : (
-                                            supportTickets.filter(t => t.es_prestador && (t.tipo === 'SOPORTE' || !t.tipo)).map(ticket => (
-                                                <div
-                                                    key={ticket.ticket_id}
-                                                    onClick={() => fetchTicketMessages(ticket)}
-                                                    style={{
-                                                        padding: '15px',
-                                                        borderBottom: '1px solid #eee',
-                                                        cursor: 'pointer',
-                                                        backgroundColor: selectedTicket?.ticket_id === ticket.ticket_id ? '#e3f2fd' : 'white',
-                                                        transition: 'background 0.2s',
-                                                        position: 'relative'
-                                                    }}
-                                                >
-                                                    <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '5px' }}>{ticket.nombre_usuario}</div>
-                                                    <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>{ticket.email}</div>
-                                                    <div style={{ fontSize: '12px', color: '#666' }}>
-                                                        {new Date(ticket.updated_at).toLocaleDateString()} {new Date(ticket.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Vista de Chat (Reutilizada) */}
-                                <div style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                                    {selectedTicket ? (
-                                        <>
-                                            <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8f9fa' }}>
-                                                <div>
-                                                    <h3 style={{ margin: 0 }}>{selectedTicket.nombre_usuario}</h3>
-                                                    <span style={{ fontSize: '12px', color: '#27ae60' }}>● Chat Abierto</span>
-                                                </div>
-                                                <button
-                                                    onClick={handleCloseTicket}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        backgroundColor: '#e74c3c',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '5px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '12px',
-                                                        fontWeight: 'bold'
-                                                    }}
-                                                >
-                                                    Finalizar Consulta
-                                                </button>
-                                            </div>
-
-                                            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', backgroundColor: '#f5f5f5', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                                {ticketMessages.map(msg => (
-                                                    <div key={msg.message_id} style={{
-                                                        alignSelf: msg.es_admin ? 'flex-end' : 'flex-start',
-                                                        maxWidth: '70%',
-                                                        backgroundColor: msg.es_admin ? '#3498db' : 'white',
-                                                        color: msg.es_admin ? 'white' : '#333',
-                                                        padding: '12px',
-                                                        borderRadius: '10px',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                                                        borderBottomRightRadius: msg.es_admin ? '0' : '10px',
-                                                        borderBottomLeftRadius: msg.es_admin ? '10px' : '0'
-                                                    }}>
-                                                        <div>{msg.message}</div>
-                                                        <div style={{ fontSize: '10px', marginTop: '5px', opacity: 0.8, textAlign: 'right' }}>
-                                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                <div ref={chatEndRef} />
-                                            </div>
-
-                                            <form onSubmit={handleSendAdminMessage} style={{ padding: '15px', borderTop: '1px solid #eee', display: 'flex', gap: '10px' }}>
-                                                <input
-                                                    type="text"
-                                                    value={adminMessage}
-                                                    onChange={(e) => setAdminMessage(e.target.value)}
-                                                    placeholder="Escribe una respuesta..."
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '10px',
-                                                        borderRadius: '5px',
-                                                        border: '1px solid #ddd'
-                                                    }}
-                                                />
-                                                <button
-                                                    type="submit"
-                                                    disabled={sendingAdminMessage || !adminMessage.trim()}
-                                                    style={{
-                                                        padding: '10px 20px',
-                                                        backgroundColor: '#3498db',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '5px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    <Send size={18} />
-                                                </button>
-                                            </form>
-                                        </>
-                                    ) : (
-                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-                                            <MessageSquare size={48} style={{ marginBottom: '10px', opacity: 0.5 }} />
-                                            <p>Selecciona un chat para comenzar</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Contenido de Prestadores */}
-                {activeTab === 'prestadores' && (
-                    <div className="bg-white rounded-xl shadow-sm overflow-hidden" style={{ backgroundColor: 'white', borderRadius: '10px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', padding: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h2 style={{ margin: 0 }}>Directorio de Prestadores</h2>
-                            <div style={{ position: 'relative' }}>
-                                <Search size={18} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar prestador..."
-                                    value={prestadorSearch}
-                                    onChange={(e) => setPrestadorSearch(e.target.value)}
-                                    style={{
-                                        padding: '10px 10px 10px 35px',
-                                        borderRadius: '5px',
-                                        border: '1px solid #ddd',
-                                        width: '250px'
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        {loadingPrestadores ? (
-                            <div style={{ textAlign: 'center', padding: '40px' }}>Cargando directorio...</div>
-                        ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid #eee', textAlign: 'left' }}>
-                                            <th style={{ padding: '15px', color: '#666' }}>Prestador</th>
-                                            <th style={{ padding: '15px', color: '#666' }}>Calificación</th>
-                                            <th style={{ padding: '15px', color: '#666' }}>Contacto</th>
-                                            <th style={{ padding: '15px', color: '#666' }}>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {prestadoresList
-                                            .filter(p => p.nombre_completo.toLowerCase().includes(prestadorSearch.toLowerCase()))
-                                            .map((p, index) => (
-                                                <tr key={p.prestador_id} style={{ borderBottom: '1px solid #eee', backgroundColor: index < 3 ? '#fffbeb' : 'transparent' }}>
-                                                    <td style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                                        <div style={{
-                                                            width: '40px', height: '40px', borderRadius: '50%',
-                                                            backgroundColor: '#ddd', overflow: 'hidden',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            color: '#666', fontWeight: 'bold'
-                                                        }}>
-                                                            {p.usuario?.foto_perfil_url ? (
-                                                                <img src={p.usuario.foto_perfil_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            ) : p.nombre_completo[0]}
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontWeight: 'bold', color: '#333' }}>
-                                                                {p.nombre_completo}
-                                                                {index < 3 && <span style={{ marginLeft: '5px', fontSize: '12px' }}>👑</span>}
-                                                            </div>
-                                                            <div style={{ fontSize: '12px', color: '#999' }}>ID: ...{p.prestador_id.slice(-6)}</div>
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '15px' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                            <Star size={16} fill="#f1c40f" color="#f1c40f" />
-                                                            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>
-                                                                {p.calificacion_promedio ? parseFloat(p.calificacion_promedio).toFixed(1) : 'N/A'}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '15px' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '13px' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                                <Mail size={14} color="#666" /> {p.usuario?.email || 'No email'}
-                                                            </div>
-                                                            {p.usuario?.telefono && (
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                                    <Phone size={14} color="#666" /> {p.usuario.telefono}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '15px' }}>
-                                                        {p.cuenta_verificada ? (
-                                                            <span style={{ backgroundColor: '#d4edda', color: '#155724', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: 'bold' }}>
-                                                                Verificado
-                                                            </span>
-                                                        ) : (
-                                                            <span style={{ backgroundColor: '#fff3cd', color: '#856404', padding: '5px 10px', borderRadius: '15px', fontSize: '12px', fontWeight: 'bold' }}>
-                                                                Pendiente
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'estadisticas' && (
-                    <div>
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                            gap: '20px'
-                        }}>
-                            <StatCard title="Total Usuarios" value={stats.totalUsuarios} icon="👥" color="#3498db" />
-                            <StatCard title="Prestadores" value={stats.totalPrestadores} icon="🔧" color="#9b59b6" />
-                            <StatCard title="Clientes" value={stats.totalClientes} icon="👤" color="#e67e22" />
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'support_debug' && (
-                    <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '10px' }}>
-                        <h3>Todos los Tickets (Sin Filtros)</h3>
-                        {supportTickets.map(t => (
-                            <div key={t.ticket_id} style={{ borderBottom: '1px solid #eee', padding: '10px' }}>
-                                <strong>ID:</strong> {t.ticket_id} <br />
-                                <strong>Usuario:</strong> {t.email} ({t.nombre_usuario}) <br />
-                                <strong>Es Cliente:</strong> {t.es_cliente ? 'SI' : 'NO'} <br />
-                                <strong>Es Prestador:</strong> {t.es_prestador ? 'SI' : 'NO'} <br />
-                                <strong>Estado:</strong> {t.estado}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div >
-    );
+import {
+  Users, Star, Mail, Phone, MapPin, Search, TrendingUp, AlertCircle,
+  CheckCircle, MessageSquare, Send, X, Zap, Activity, Eye, RefreshCw,
+  Clock, AlertTriangle, PhoneCall, UserX, RotateCcw, Plus, Edit2,
+  Trash2, ChevronRight, Filter, Globe, Smartphone, Bot, BarChart3,
+  DollarSign, Shield
+} from 'lucide-react';
+
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+const ALLOWED_ADMINS = [
+  'admin@uniwork.com.ar', 'ebersaldivia@gmail.com',
+  'waltertomassaldiviablasco@gmail.com', 'tomassaldiviawalter@gmail.com', 'prueba@test.com'
+];
+
+const RUBROS = ['Plomería', 'Electricidad', 'Gas', 'Cerrajería', 'Refrigeración'];
+const RUBRO_SLUGS = {
+  'Plomería': 'plomeria', 'Electricidad': 'electricidad', 'Gas': 'gas',
+  'Cerrajería': 'cerrajeria', 'Refrigeración': 'refrigeracion'
+};
+const ESTADO_LABELS = {
+  'ESPERANDO_NOMBRE': '📝 Ingresando nombre',
+  'ESPERANDO_APELLIDO': '📝 Ingresando apellido',
+  'ESPERANDO_DOMICILIO': '📍 Ingresando domicilio',
+  'ESPERANDO_EMAIL': '📧 Ingresando email',
+  'COMPLETADO': '✅ Registrado',
+  'ESPERANDO_DESCRIPCION': '🔧 Describiendo problema',
+  'ESPERANDO_ACEPTACION': '⏳ Esperando prestador',
+  'VALIDANDO_DATOS_ACEPTACION': '✔️ Validando datos',
+  'MODIFICANDO_DATOS': '✏️ Modificando datos',
+  'ELIGIENDO_FECHA': '📅 Eligiendo fecha',
+  'PAGO_PENDIENTE': '💳 Pago pendiente',
+};
+const ESTADO_SOL_COLORS = {
+  'pendiente': '#f5c518',
+  'fechas_propuestas': '#6c63ff',
+  'esperando_pago': '#ff9800',
+  'pagada': '#43e97b',
+  'rechazada': '#ff4d6d',
+  'cancelada': '#aaa',
+  'expirada': '#888',
 };
 
-const StatCard = ({ title, value, icon, color }) => (
-    <div style={{
-        backgroundColor: 'white',
-        padding: '20px',
-        borderRadius: '10px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        borderLeft: `5px solid ${color}`
-    }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-                <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>{title}</p>
-                <p style={{ margin: 0, fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{value}</p>
-            </div>
-            <div style={{ fontSize: '40px' }}>{icon}</div>
-        </div>
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function timeAgo(date) {
+  if (!date) return '—';
+  const diff = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function minutesAgo(date) {
+  if (!date) return 0;
+  return Math.floor((Date.now() - new Date(date).getTime()) / 60000);
+}
+
+function SlaIndicator({ createdAt }) {
+  const mins = minutesAgo(createdAt);
+  if (mins < 30) return <span style={{ color: '#43e97b', fontSize: '0.75rem', fontWeight: 700 }}>✓ {mins}m</span>;
+  if (mins < 60) return <span style={{ color: '#f5c518', fontSize: '0.75rem', fontWeight: 700, animation: 'pulse-glow 2s infinite' }}>⚠️ {mins}m</span>;
+  return <span style={{ color: '#ff4d6d', fontSize: '0.75rem', fontWeight: 700, animation: 'pulse-urgent 1s infinite' }}>🚨 {mins}m</span>;
+}
+
+// ─── STYLES ──────────────────────────────────────────────────────────────────
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+  :root {
+    --v: #6c63ff;
+    --v2: #9b8fff;
+    --v-dim: rgba(108,99,255,0.15);
+    --v-border: rgba(108,99,255,0.3);
+    --y: #f5c518;
+    --y-dim: rgba(245,197,24,0.15);
+    --y-border: rgba(245,197,24,0.3);
+    --bg: #08080f;
+    --bg2: #0d0d1a;
+    --bg3: #12122a;
+    --card: rgba(255,255,255,0.03);
+    --card-hover: rgba(108,99,255,0.07);
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f0ff;
+    --text2: rgba(240,240,255,0.6);
+    --text3: rgba(240,240,255,0.35);
+    --green: #43e97b;
+    --red: #ff4d6d;
+    --orange: #f5c518;
+  }
+
+  .adm-root * { box-sizing: border-box; margin: 0; padding: 0; }
+  .adm-root { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+  /* ── GRID LINES BACKGROUND ── */
+  .adm-root::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(108,99,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,99,255,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* ── HEADER ── */
+  .adm-header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,8,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--v-border);
+    padding: 0 2rem;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 0 40px rgba(108,99,255,0.1);
+  }
+  .adm-logo {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.4rem; font-weight: 700;
+    background: linear-gradient(135deg, var(--v), var(--y));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .adm-live-badge {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: rgba(67,233,123,0.1);
+    border: 1px solid rgba(67,233,123,0.3);
+    border-radius: 999px; padding: 0.25rem 0.75rem;
+    font-size: 0.7rem; font-weight: 700; color: var(--green); letter-spacing: 0.08em;
+  }
+  .adm-live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+    animation: live-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(67,233,123,0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(67,233,123,0); }
+  }
+  .adm-user-info { display: flex; align-items: center; gap: 1rem; }
+  .adm-logout-btn {
+    background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3);
+    color: #ff4d6d; padding: 0.4rem 1rem; border-radius: 8px;
+    cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .adm-logout-btn:hover { background: rgba(255,77,109,0.2); }
+
+  /* ── LAYOUT ── */
+  .adm-layout { display: flex; position: relative; z-index: 1; }
+
+  /* ── SIDEBAR ── */
+  .adm-sidebar {
+    width: 220px; min-height: calc(100vh - 64px);
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 1.5rem 1rem;
+    display: flex; flex-direction: column; gap: 0.35rem;
+    position: sticky; top: 64px; height: calc(100vh - 64px);
+    overflow-y: auto;
+  }
+  .adm-nav-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.7rem 1rem; border-radius: 10px;
+    cursor: pointer; transition: all 0.2s;
+    font-size: 0.82rem; font-weight: 500; color: var(--text2);
+    position: relative; border: 1px solid transparent;
+  }
+  .adm-nav-item:hover { background: var(--card-hover); color: var(--text); }
+  .adm-nav-item.active {
+    background: linear-gradient(135deg, rgba(108,99,255,0.2), rgba(108,99,255,0.05));
+    border-color: var(--v-border);
+    color: var(--v2);
+    box-shadow: inset 0 0 20px rgba(108,99,255,0.1);
+  }
+  .adm-nav-item.active::before {
+    content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 60%; background: var(--v); border-radius: 0 3px 3px 0;
+  }
+  .adm-nav-badge {
+    margin-left: auto;
+    background: var(--red); color: white;
+    border-radius: 999px; padding: 0.1rem 0.45rem;
+    font-size: 0.65rem; font-weight: 800; min-width: 20px; text-align: center;
+    animation: badge-pop 0.3s ease;
+  }
+  .adm-nav-badge.yellow { background: var(--y); color: #000; }
+  @keyframes badge-pop { 0% { transform: scale(0); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
+  .adm-nav-divider { height: 1px; background: var(--border); margin: 0.5rem 0; }
+  .adm-nav-label { font-size: 0.65rem; font-weight: 700; color: var(--text3); letter-spacing: 0.1em; padding: 0 1rem; margin-top: 0.5rem; }
+
+  /* ── MAIN CONTENT ── */
+  .adm-main { flex: 1; padding: 2rem; overflow-y: auto; }
+
+  /* ── STAT CARDS ── */
+  .adm-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .adm-stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.25rem;
+    position: relative; overflow: hidden;
+    transition: all 0.3s;
+    transform-style: preserve-3d;
+  }
+  .adm-stat-card:hover {
+    transform: translateY(-4px) rotateX(3deg);
+    border-color: var(--v-border);
+    box-shadow: 0 20px 40px rgba(108,99,255,0.15), 0 0 0 1px var(--v-border);
+  }
+  .adm-stat-card::after {
+    content: ''; position: absolute; inset: 0; border-radius: 16px;
+    background: linear-gradient(135deg, rgba(108,99,255,0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .adm-stat-card .stat-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 0.75rem;
+  }
+  .adm-stat-card .stat-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 2rem; font-weight: 700; line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+  .adm-stat-card .stat-label { font-size: 0.78rem; color: var(--text3); font-weight: 500; }
+
+  /* ── SECTION HEADER ── */
+  .adm-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+  .adm-section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem; font-weight: 700; color: var(--text);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+
+  /* ── GLASS CARDS ── */
+  .adm-glass-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.2s;
+  }
+  .adm-glass-card:hover { border-color: var(--v-border); }
+
+  /* ── TABLE ── */
+  .adm-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .adm-table th {
+    text-align: left; font-size: 0.7rem; font-weight: 700;
+    color: var(--text3); letter-spacing: 0.08em; padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .adm-table td {
+    padding: 0.85rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.03);
+    font-size: 0.82rem; color: var(--text2); vertical-align: middle;
+  }
+  .adm-table tr:hover td { background: var(--card-hover); color: var(--text); }
+
+  /* ── BADGES ── */
+  .adm-badge {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    padding: 0.2rem 0.6rem; border-radius: 999px;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* ── BUTTONS ── */
+  .adm-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.45rem 0.9rem; border-radius: 8px; border: none;
+    font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; font-family: 'Inter', sans-serif;
+  }
+  .adm-btn-primary {
+    background: linear-gradient(135deg, var(--v), #4a43cc);
+    color: white; box-shadow: 0 4px 15px rgba(108,99,255,0.3);
+  }
+  .adm-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(108,99,255,0.4); }
+  .adm-btn-yellow {
+    background: linear-gradient(135deg, var(--y), #d4a800);
+    color: #000; box-shadow: 0 4px 15px rgba(245,197,24,0.25);
+  }
+  .adm-btn-yellow:hover { transform: translateY(-1px); }
+  .adm-btn-ghost {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .adm-btn-ghost:hover { background: var(--card-hover); border-color: var(--v-border); color: var(--text); }
+  .adm-btn-danger { background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); color: var(--red); }
+  .adm-btn-danger:hover { background: rgba(255,77,109,0.2); }
+
+  /* ── INPUT ── */
+  .adm-input {
+    width: 100%; background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.65rem 1rem; color: var(--text);
+    font-size: 0.85rem; font-family: 'Inter', sans-serif;
+    outline: none; transition: all 0.2s;
+  }
+  .adm-input:focus { border-color: var(--v); box-shadow: 0 0 0 3px rgba(108,99,255,0.15); }
+  .adm-input::placeholder { color: var(--text3); }
+  .adm-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c63ff' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; padding-right: 2rem; cursor: pointer; }
+
+  /* ── LABEL ── */
+  .adm-label { font-size: 0.75rem; font-weight: 600; color: var(--text3); letter-spacing: 0.04em; margin-bottom: 0.35rem; display: block; }
+
+  /* ── FORM GROUP ── */
+  .adm-form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+  .adm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+  /* ── MODAL ── */
+  .adm-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px); z-index: 1000;
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+  }
+  .adm-modal {
+    background: var(--bg3); border: 1px solid var(--v-border);
+    border-radius: 20px; padding: 2rem; max-width: 560px; width: 100%;
+    box-shadow: 0 40px 80px rgba(108,99,255,0.2);
+    animation: modal-in 0.25s ease;
+  }
+  @keyframes modal-in { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: none; } }
+  .adm-modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; }
+
+  /* ── CONVERSATION CARD ── */
+  .adm-conv-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1rem 1.25rem;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    transition: all 0.2s;
+  }
+  .adm-conv-card:hover { border-color: var(--v-border); background: var(--card-hover); }
+
+  /* ── SOLICITUD CARD ── */
+  .adm-sol-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.25rem;
+    transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .adm-sol-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; border-radius: 3px 0 0 3px;
+  }
+  .adm-sol-card.sla-ok::before { background: var(--green); }
+  .adm-sol-card.sla-warn::before { background: var(--orange); }
+  .adm-sol-card.sla-crit::before { background: var(--red); box-shadow: 0 0 10px rgba(255,77,109,0.5); }
+  .adm-sol-card:hover { border-color: var(--v-border); }
+
+  /* ── LOADING ── */
+  .adm-spinner {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 3px solid var(--v-dim);
+    border-top-color: var(--v);
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .adm-loading-center { display: flex; align-items: center; justify-content: center; padding: 3rem; }
+
+  /* ── EMPTY STATE ── */
+  .adm-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 3rem; gap: 1rem; color: var(--text3);
+  }
+  .adm-empty-icon { font-size: 3rem; opacity: 0.4; }
+
+  /* ── FILTER PILLS ── */
+  .adm-filter-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .adm-pill {
+    padding: 0.3rem 0.9rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); color: var(--text2);
+    background: var(--card); transition: all 0.15s;
+  }
+  .adm-pill.active { background: var(--v-dim); border-color: var(--v); color: var(--v2); }
+  .adm-pill:hover { border-color: var(--v-border); color: var(--text); }
+
+  /* ── REALTIME FEED ── */
+  .adm-feed {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    max-height: 300px; overflow-y: auto;
+  }
+  .adm-feed-item {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.6rem 0.75rem; border-radius: 10px;
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.78rem; color: var(--text2);
+    animation: feed-in 0.3s ease;
+  }
+  @keyframes feed-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+  .adm-feed-time { font-family: 'JetBrains Mono', monospace; color: var(--text3); font-size: 0.68rem; white-space: nowrap; }
+
+  @keyframes pulse-glow { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  @keyframes pulse-urgent { 0%,100% { opacity: 1; box-shadow: 0 0 8px rgba(255,77,109,0.5); } 50% { opacity: 0.8; box-shadow: 0 0 16px rgba(255,77,109,0.8); } }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .adm-sidebar { display: none; }
+    .adm-form-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .adm-main { padding: 1rem; }
+    .adm-stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+`;
+
+// ─── INLINE TIMER HOOK ────────────────────────────────────────────────────────
+function useTick(interval = 30000) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(p => p + 1), interval);
+    return () => clearInterval(t);
+  }, [interval]);
+  return tick;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  MAIN COMPONENT
+// ═════════════════════════════════════════════════════════════════════════════
+const AdminDashboard = () => {
+  const navigate = useNavigate();
+  const tick = useTick(30000); // refresh SLA every 30s
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('monitor');
+
+  // ── Stats ──
+  const [stats, setStats] = useState({ prestadores: 0, clientes: 0, solicitudesHoy: 0, pagosHoy: 0 });
+
+  // ── Monitor Bot ──
+  const [convActivas, setConvActivas] = useState([]);
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [loadingConv, setLoadingConv] = useState(false);
+  const [selectedConv, setSelectedConv] = useState(null);
+
+  // ── Seguimiento CON App ──
+  const [solicitudesApp, setSolicitudesApp] = useState([]);
+  const [filtroEstado, setFiltroEstado] = useState('all');
+  const [filtroRubro, setFiltroRubro] = useState('all');
+  const [loadingSol, setLoadingSol] = useState(false);
+  const [intervenirModal, setIntervenirModal] = useState(null);
+  const [intervenirMsg, setIntervenirMsg] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
+
+  // ── Prestadores SIN App ──
+  const [extTab, setExtTab] = useState('list');
+  const [prestExtList, setPrestExtList] = useState([]);
+  const [loadingExt, setLoadingExt] = useState(false);
+  const [extForm, setExtForm] = useState({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '' });
+  const [editingExt, setEditingExt] = useState(null);
+  const [showExtForm, setShowExtForm] = useState(false);
+  const [solicitudesExt, setSolicitudesExt] = useState([]);
+  const [loadingSolExt, setLoadingSolExt] = useState(false);
+  const [notaModal, setNotaModal] = useState(null);
+  const [notaTexto, setNotaTexto] = useState('');
+
+  // ── Pagos / Reportes (existing) ──
+  const [pagosPendientes, setPagosPendientes] = useState([]);
+  const [reportes, setReportes] = useState([]);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketMessages, setTicketMessages] = useState([]);
+  const [adminMessage, setAdminMessage] = useState('');
+  const [sendingAdminMessage, setSendingAdminMessage] = useState(false);
+  const [activeReportTab, setActiveReportTab] = useState('servicios');
+  const [prestadoresList, setPrestadoresList] = useState([]);
+  const [loadingPagos, setLoadingPagos] = useState(false);
+  const [loadingReportes, setLoadingReportes] = useState(false);
+  const chatEndRef = useRef(null);
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  useEffect(() => { checkUser(); }, []);
+
+  const checkUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { navigate('/login'); return; }
+      if (!ALLOWED_ADMINS.includes(user.email)) { alert('No tenés permisos de administrador'); navigate('/'); return; }
+      setUser(user);
+      await fetchAll();
+    } catch { navigate('/login'); }
+    finally { setLoading(false); }
+  };
+
+  const fetchAll = async () => {
+    await Promise.all([fetchStats(), fetchConvActivas(), fetchSolicitudesApp(),
+      fetchPrestExtList(), fetchSolicitudesExt(), fetchPagosPendientes(),
+      fetchReportes(), fetchSupportTickets(), fetchPrestadores()]);
+  };
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const fetchStats = async () => {
+    const [{ count: p }, { count: c }, { count: sw }] = await Promise.all([
+      supabase.from('prestadores').select('*', { count: 'exact', head: true }),
+      supabase.from('clientes').select('*', { count: 'exact', head: true }),
+      supabase.from('solicitudes_whatsapp').select('*', { count: 'exact', head: true }).gte('created_at', new Date(Date.now() - 86400000).toISOString()),
+    ]);
+    setStats({ prestadores: p || 0, clientes: c || 0, solicitudesHoy: sw || 0 });
+  };
+
+  // ── Monitor Bot ───────────────────────────────────────────────────────────
+  const fetchConvActivas = async () => {
+    setLoadingConv(true);
+    const { data } = await supabase.from('clientes_whatsapp').select('*').neq('paso_conversacion', 'COMPLETADO').order('updated_at', { ascending: false });
+    setConvActivas(data || []);
+    setLoadingConv(false);
+  };
+
+  const addFeedItem = useCallback((msg, icon = '🔔') => {
+    setActivityFeed(prev => [{ id: Date.now(), msg, icon, ts: new Date() }, ...prev].slice(0, 50));
+  }, []);
+
+  // Realtime: Monitor Bot
+  useEffect(() => {
+    const ch = supabase.channel('admin-bot-monitor')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes_whatsapp' }, (pl) => {
+        fetchConvActivas();
+        if (pl.eventType === 'UPDATE') addFeedItem(`${pl.new.nombre || 'Cliente'} — ${ESTADO_LABELS[pl.new.paso_conversacion] || pl.new.paso_conversacion}`, '💬');
+        if (pl.eventType === 'INSERT') addFeedItem(`Nuevo cliente registrado: ${pl.new.telefono}`, '👋');
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_whatsapp' }, (pl) => {
+        fetchSolicitudesApp();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nueva solicitud creada (${pl.new.categoria_identificada})`, '📋');
+        if (pl.eventType === 'UPDATE') addFeedItem(`Solicitud ${pl.new.id?.slice(0,8)} → ${pl.new.estado}`, '🔄');
+      })
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [addFeedItem]);
+
+  const handleResetConv = async (id) => {
+    if (!confirm('¿Resetear la conversación de este cliente?')) return;
+    await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: {} }).eq('id', id);
+    addFeedItem('Conversación reseteada por admin', '🔄');
+    fetchConvActivas();
+  };
+
+  const handleBloquearCliente = async (id, nombre) => {
+    if (!confirm(`¿Bloquear a ${nombre || 'este cliente'}?`)) return;
+    await supabase.from('clientes_whatsapp').update({ bloqueado_por_deuda: true }).eq('id', id);
+    addFeedItem(`Cliente ${nombre || id.slice(0,8)} bloqueado`, '🚫');
+    fetchConvActivas();
+  };
+
+  // ── Solicitudes CON App ───────────────────────────────────────────────────
+  const fetchSolicitudesApp = async () => {
+    setLoadingSol(true);
+    const { data } = await supabase.from('solicitudes_whatsapp')
+      .select('*, clientes_whatsapp(nombre, apellido, telefono)')
+      .in('estado', ['pendiente', 'fechas_propuestas', 'esperando_pago', 'pagada'])
+      .order('created_at', { ascending: false });
+    setSolicitudesApp(data || []);
+    setLoadingSol(false);
+  };
+
+  const handleIntervenir = async () => {
+    if (!intervenirMsg.trim() || !intervenirModal) return;
+    setSendingMsg(true);
+    try {
+      await fetch(`${API_BASE}/api/admin/intervenir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telefono_cliente: intervenirModal.telefono, mensaje: intervenirMsg.trim() })
+      });
+      addFeedItem(`Intervención enviada a ${intervenirModal.nombre}`, '📤');
+      setIntervenirMsg('');
+      setIntervenirModal(null);
+    } catch (e) { alert('Error al enviar: ' + e.message); }
+    setSendingMsg(false);
+  };
+
+  const solFiltradas = solicitudesApp.filter(s => {
+    if (filtroEstado !== 'all' && s.estado !== filtroEstado) return false;
+    if (filtroRubro !== 'all' && s.categoria_identificada !== filtroRubro) return false;
+    return true;
+  });
+
+  // ── Prestadores Externos ──────────────────────────────────────────────────
+  const fetchPrestExtList = async () => {
+    setLoadingExt(true);
+    const { data } = await supabase.from('prestadores_externos').select('*').order('created_at', { ascending: false });
+    setPrestExtList(data || []);
+    setLoadingExt(false);
+  };
+
+  const fetchSolicitudesExt = async () => {
+    setLoadingSolExt(true);
+    const { data } = await supabase.from('solicitudes_externas')
+      .select('*, prestador:prestadores_externos(nombre, apellido, rubro, telefono, email)')
+      .order('created_at', { ascending: false });
+    setSolicitudesExt(data || []);
+    setLoadingSolExt(false);
+  };
+
+  const handleSaveExt = async () => {
+    if (!extForm.nombre || !extForm.rubro) { alert('Nombre y rubro son obligatorios'); return; }
+    const payload = { ...extForm, rubro_slug: RUBRO_SLUGS[extForm.rubro] || extForm.rubro.toLowerCase(), precio_hora: extForm.precio_hora ? parseFloat(extForm.precio_hora) : null, anos_experiencia: extForm.anos_experiencia ? parseInt(extForm.anos_experiencia) : 0 };
+    if (editingExt) {
+      await supabase.from('prestadores_externos').update(payload).eq('id', editingExt);
+    } else {
+      await supabase.from('prestadores_externos').insert(payload);
+    }
+    setShowExtForm(false); setEditingExt(null);
+    setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '' });
+    fetchPrestExtList();
+  };
+
+  const handleToggleExt = async (id, activo) => {
+    await supabase.from('prestadores_externos').update({ activo: !activo }).eq('id', id);
+    fetchPrestExtList();
+  };
+
+  const handleMarcarContactado = async () => {
+    if (!notaModal) return;
+    await supabase.from('solicitudes_externas').update({ estado: 'admin_contactado_prestador', notas_admin: notaTexto, updated_at: new Date().toISOString() }).eq('id', notaModal.id);
+    setNotaModal(null); setNotaTexto('');
+    fetchSolicitudesExt();
+  };
+
+  // ── Pagos / Soporte (existing logic simplified) ───────────────────────────
+  const fetchPagosPendientes = async () => {
+    setLoadingPagos(true);
+    const { data } = await supabase.from('transacciones').select(`transaccion_id, monto_retenido, fecha_liberacion_fondos, solicitud_id, solicitudes(solicitud_id, prestador_id, servicio_id, prestadores(nombre_completo, cuenta_bancaria_cbu, cuenta_bancaria_alias, cuenta_bancaria_titular, mercadopago_email), servicios(titulo))`).eq('estado_garantia', 'PENDIENTE').lte('fecha_liberacion_fondos', new Date().toISOString()).order('fecha_liberacion_fondos', { ascending: true });
+    setPagosPendientes(data || []);
+    setLoadingPagos(false);
+  };
+
+  const fetchReportes = async () => {
+    setLoadingReportes(true);
+    const { data } = await supabase.from('reportes_servicios').select(`*, cliente:clientes!reportes_servicios_cliente_id_fkey(nombre_completo), prestador:prestadores!reportes_servicios_prestador_id_fkey(nombre_completo), servicio:servicios!reportes_servicios_servicio_id_fkey(titulo)`).order('fecha_reporte', { ascending: false });
+    setReportes(data || []);
+    setLoadingReportes(false);
+  };
+
+  const fetchSupportTickets = async () => {
+    const { data } = await supabase.from('support_tickets').select(`ticket_id, usuario_id, estado, tipo, motivo, created_at, updated_at, usuario:usuarios(email, telefono, foto_perfil_url, cliente:clientes(nombre_completo), prestador:prestadores(nombre_completo))`).eq('estado', 'ABIERTO').order('updated_at', { ascending: false });
+    if (!data) return;
+    let totalUnread = 0;
+    const processed = await Promise.all(data.map(async t => {
+      const clientObj = Array.isArray(t.usuario?.cliente) ? t.usuario.cliente[0] : t.usuario?.cliente;
+      const providerObj = Array.isArray(t.usuario?.prestador) ? t.usuario.prestador[0] : t.usuario?.prestador;
+      const { count: uc } = await supabase.from('support_messages').select('*', { count: 'exact', head: true }).eq('ticket_id', t.ticket_id).eq('es_admin', false).eq('leido', false);
+      totalUnread += (uc || 0);
+      return { ...t, nombre_usuario: clientObj?.nombre_completo || providerObj?.nombre_completo || 'Desconocido', email: t.usuario?.email || '', es_cliente: !!t.usuario?.cliente, es_prestador: !!t.usuario?.prestador, unread_count: uc || 0 };
+    }));
+    setUnreadMessages(totalUnread);
+    setSupportTickets(processed);
+  };
+
+  const fetchPrestadores = async () => {
+    const { data } = await supabase.from('prestadores').select('*, usuario:usuarios!inner(email, foto_perfil_url, telefono)');
+    const sorted = (data || []).sort((a, b) => (b.calificacion_promedio || 0) - (a.calificacion_promedio || 0));
+    setPrestadoresList(sorted);
+  };
+
+  const fetchTicketMessages = async (ticket) => {
+    setSelectedTicket(ticket);
+    const { data } = await supabase.from('support_messages').select('*').eq('ticket_id', ticket.ticket_id).order('created_at', { ascending: true });
+    setTicketMessages(data || []);
+    await supabase.from('support_messages').update({ leido: true }).eq('ticket_id', ticket.ticket_id).eq('es_admin', false).eq('leido', false);
+    fetchSupportTickets();
+  };
+
+  const handleSendAdminMessage = async (e) => {
+    e.preventDefault();
+    if (!adminMessage.trim() || !selectedTicket) return;
+    setSendingAdminMessage(true);
+    const msg = adminMessage.trim();
+    setTicketMessages(prev => [...prev, { message_id: 'temp-' + Date.now(), message: msg, created_at: new Date().toISOString(), es_admin: true, leido: false }]);
+    setAdminMessage('');
+    await supabase.from('support_messages').insert([{ ticket_id: selectedTicket.ticket_id, message: msg, es_admin: true, leido: false }]);
+    await supabase.from('support_tickets').update({ updated_at: new Date().toISOString() }).eq('ticket_id', selectedTicket.ticket_id);
+    fetchTicketMessages(selectedTicket);
+    setSendingAdminMessage(false);
+  };
+
+  const handleCloseTicket = async () => {
+    if (!selectedTicket || !confirm('¿Cerrar este ticket?')) return;
+    await supabase.from('support_tickets').update({ estado: 'CERRADO' }).eq('ticket_id', selectedTicket.ticket_id);
+    setSelectedTicket(null);
+    setTimeout(fetchSupportTickets, 500);
+  };
+
+  useEffect(() => {
+    if (selectedTicket) {
+      const sub = supabase.channel(`msgs-${selectedTicket.ticket_id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `ticket_id=eq.${selectedTicket.ticket_id}` }, pl => {
+          setTicketMessages(prev => prev.some(m => m.message_id === pl.new.message_id) ? prev : [...prev, pl.new]);
+        }).subscribe();
+      return () => supabase.removeChannel(sub);
+    }
+  }, [selectedTicket?.ticket_id]);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [ticketMessages, selectedTicket]);
+
+  const handleProcesarPago = async (t) => {
+    if (!confirm(`¿Confirmar transferencia de $${t.monto_retenido} a ${t.solicitudes.prestadores.nombre_completo}?`)) return;
+    const { error } = await supabase.rpc('confirmar_transferencia_realizada', { p_transaccion_id: t.transaccion_id });
+    if (error) { alert('Error: ' + error.message); return; }
+    alert('Pago procesado ✅');
+    fetchPagosPendientes();
+  };
+
+  const handleCambiarEstadoReporte = async (id, estado) => {
+    await supabase.from('reportes_servicios').update({ estado, fecha_resolucion: estado === 'RESUELTO' ? new Date().toISOString() : null }).eq('reporte_id', id);
+    fetchReportes();
+  };
+
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate('/login'); };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#08080f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1.5rem' }}>
+      <style>{STYLES}</style>
+      <div className="adm-spinner" style={{ width: 60, height: 60, borderWidth: 4 }}></div>
+      <p style={{ color: 'rgba(240,240,255,0.5)', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>Cargando Panel de Control...</p>
     </div>
-);
+  );
+
+  // ─── NAV CONFIG ───────────────────────────────────────────────────────────
+  const navItems = [
+    { id: 'monitor', icon: Bot, label: 'Monitor Bot', badge: convActivas.length || null },
+    { id: 'seguimiento', icon: Smartphone, label: 'Con App', badge: solicitudesApp.filter(s => minutesAgo(s.created_at) > 60 && s.estado === 'pendiente').length || null, badgeClass: 'yellow' },
+    { id: 'externos', icon: Globe, label: 'Sin App', badge: solicitudesExt.filter(s => s.estado === 'pendiente_contacto').length || null },
+    null, // divider
+    { id: 'pagos-pendientes', icon: DollarSign, label: 'Pagos', badge: pagosPendientes.length || null },
+    { id: 'reportes', icon: AlertTriangle, label: 'Reportes', badge: reportes.filter(r => r.estado === 'PENDIENTE').length || null },
+    { id: 'soporte', icon: MessageSquare, label: 'Soporte', badge: unreadMessages || null },
+    { id: 'prestadores', icon: Users, label: 'Prestadores' },
+    { id: 'estadisticas', icon: BarChart3, label: 'Estadísticas' },
+  ];
+
+  return (
+    <div className="adm-root">
+      <style>{STYLES}</style>
+
+      {/* HEADER */}
+      <header className="adm-header">
+        <div className="adm-logo">
+          <Zap size={20} color="#f5c518" />
+          Uni<span style={{ color: '#f5c518' }}>work</span>
+          <span style={{ color: 'rgba(240,240,255,0.4)', fontWeight: 400, fontSize: '0.85rem', marginLeft: '0.25rem' }}>Admin</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="adm-live-badge"><div className="adm-live-dot"></div>EN VIVO</div>
+          <span style={{ color: 'rgba(240,240,255,0.4)', fontSize: '0.78rem' }}>{user?.email}</span>
+          <button className="adm-logout-btn" onClick={handleLogout}>Salir</button>
+        </div>
+      </header>
+
+      <div className="adm-layout">
+        {/* SIDEBAR */}
+        <aside className="adm-sidebar">
+          <span className="adm-nav-label">OPERACIONES</span>
+          {navItems.map((item, i) => {
+            if (item === null) return <div key={i} className="adm-nav-divider" />;
+            const Icon = item.icon;
+            return (
+              <div key={item.id} className={`adm-nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setActiveTab(item.id)}>
+                <Icon size={16} />
+                {item.label}
+                {item.badge ? <span className={`adm-nav-badge ${item.badgeClass || ''}`}>{item.badge}</span> : null}
+              </div>
+            );
+          })}
+        </aside>
+
+        {/* MAIN */}
+        <main className="adm-main">
+
+          {/* STATS ROW — siempre visible */}
+          <div className="adm-stats-grid">
+            {[
+              { label: 'Prestadores', value: stats.prestadores, icon: <Users size={18} />, color: '#6c63ff', bg: 'rgba(108,99,255,0.15)' },
+              { label: 'Clientes', value: stats.clientes, icon: <Users size={18} />, color: '#43e97b', bg: 'rgba(67,233,123,0.15)' },
+              { label: 'Solicitudes hoy', value: stats.solicitudesHoy, icon: <Activity size={18} />, color: '#f5c518', bg: 'rgba(245,197,24,0.15)' },
+              { label: 'Conversaciones activas', value: convActivas.length, icon: <Bot size={18} />, color: '#ff4d6d', bg: 'rgba(255,77,109,0.15)' },
+              { label: 'Sin App pendientes', value: solicitudesExt.filter(s => s.estado === 'pendiente_contacto').length, icon: <Globe size={18} />, color: '#9b8fff', bg: 'rgba(155,143,255,0.15)' },
+            ].map((s, i) => (
+              <div key={i} className="adm-stat-card">
+                <div className="stat-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+                <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+                <div className="stat-label">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ════════ TAB: MONITOR BOT ════════ */}
+          {activeTab === 'monitor' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '1.5rem' }}>
+              {/* Left: conversaciones */}
+              <div>
+                <div className="adm-section-header">
+                  <div className="adm-section-title"><Bot size={18} color="#6c63ff" /> Conversaciones Activas</div>
+                  <button className="adm-btn adm-btn-ghost" onClick={fetchConvActivas}><RefreshCw size={14} />Actualizar</button>
+                </div>
+                {loadingConv ? <div className="adm-loading-center"><div className="adm-spinner"></div></div>
+                  : convActivas.length === 0
+                  ? <div className="adm-empty"><div className="adm-empty-icon">🤖</div><p>Sin conversaciones activas</p></div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {convActivas.map(c => (
+                      <div key={c.id} className="adm-conv-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #6c63ff, #f5c518)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                              {(c.nombre || c.telefono || '?')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.nombre ? `${c.nombre} ${c.apellido || ''}`.trim() : c.telefono}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text3)' }}>{c.telefono}</div>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--v2)', fontWeight: 600 }}>{ESTADO_LABELS[c.paso_conversacion] || c.paso_conversacion}</div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text3)', marginTop: 2 }}><Clock size={10} style={{ display: 'inline', marginRight: 3 }} />{timeAgo(c.updated_at)}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => setSelectedConv(selectedConv?.id === c.id ? null : c)}><Eye size={12} />Detalle</button>
+                          <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => handleResetConv(c.id)}><RotateCcw size={12} />Resetear</button>
+                          <button className="adm-btn adm-btn-danger" style={{ fontSize: '0.72rem' }} onClick={() => handleBloquearCliente(c.id, c.nombre)}><UserX size={12} />Bloquear</button>
+                          {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none' }}><Phone size={12} />WA</a>}
+                        </div>
+                        {selectedConv?.id === c.id && (
+                          <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '0.75rem', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text2)' }}>
+                            <strong style={{ color: 'var(--v2)' }}>Datos temporales:</strong>
+                            <pre style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem', color: 'var(--text3)' }}>
+                              {JSON.stringify(c.datos_temporales || {}, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                }
+              </div>
+
+              {/* Right: feed */}
+              <div>
+                <div className="adm-section-header">
+                  <div className="adm-section-title"><Activity size={18} color="#43e97b" />Feed en Vivo</div>
+                </div>
+                <div className="adm-glass-card" style={{ padding: '1rem' }}>
+                  {activityFeed.length === 0
+                    ? <div className="adm-empty" style={{ padding: '2rem' }}><div className="adm-empty-icon">📡</div><p style={{ fontSize: '0.8rem' }}>Esperando actividad...</p></div>
+                    : <div className="adm-feed">
+                      {activityFeed.map(item => (
+                        <div key={item.id} className="adm-feed-item">
+                          <span style={{ fontSize: '1rem' }}>{item.icon}</span>
+                          <div style={{ flex: 1 }}>
+                            <div>{item.msg}</div>
+                            <div className="adm-feed-time">{item.ts.toLocaleTimeString('es-AR')}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ════════ TAB: SEGUIMIENTO CON APP ════════ */}
+          {activeTab === 'seguimiento' && (
+            <div>
+              <div className="adm-section-header">
+                <div className="adm-section-title"><Smartphone size={18} color="#6c63ff" />Solicitudes — Prestadores con App</div>
+                <button className="adm-btn adm-btn-ghost" onClick={fetchSolicitudesApp}><RefreshCw size={14} />Actualizar</button>
+              </div>
+
+              {/* Filtros */}
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div>
+                  <div className="adm-label" style={{ marginBottom: '0.4rem' }}>Estado</div>
+                  <div className="adm-filter-pills">
+                    {['all', 'pendiente', 'fechas_propuestas', 'esperando_pago', 'pagada'].map(s => (
+                      <div key={s} className={`adm-pill ${filtroEstado === s ? 'active' : ''}`} onClick={() => setFiltroEstado(s)}>
+                        {s === 'all' ? 'Todos' : s.replace('_', ' ')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="adm-label" style={{ marginBottom: '0.4rem' }}>Rubro</div>
+                  <div className="adm-filter-pills">
+                    {['all', ...RUBROS].map(r => (
+                      <div key={r} className={`adm-pill ${filtroRubro === r ? 'active' : ''}`} onClick={() => setFiltroRubro(r)}>
+                        {r === 'all' ? 'Todos' : r}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {loadingSol
+                ? <div className="adm-loading-center"><div className="adm-spinner"></div></div>
+                : solFiltradas.length === 0
+                ? <div className="adm-empty"><div className="adm-empty-icon">📱</div><p>Sin solicitudes activas</p></div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {solFiltradas.map(s => {
+                    const mins = minutesAgo(s.created_at);
+                    const slaClass = mins < 30 ? 'sla-ok' : mins < 60 ? 'sla-warn' : 'sla-crit';
+                    const cliente = s.clientes_whatsapp;
+                    const estadoColor = ESTADO_SOL_COLORS[s.estado] || '#aaa';
+                    return (
+                      <div key={s.id} className={`adm-sol-card ${slaClass}`}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                              <span className="adm-badge" style={{ background: `${estadoColor}22`, border: `1px solid ${estadoColor}44`, color: estadoColor }}>
+                                {s.estado?.replace(/_/g, ' ')}
+                              </span>
+                              <span style={{ fontSize: '0.78rem', color: 'var(--v2)', fontWeight: 600 }}>{s.categoria_identificada}</span>
+                              <SlaIndicator createdAt={s.created_at} />
+                            </div>
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.25rem' }}>
+                              {cliente ? `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim() || 'Cliente WA' : 'Cliente'}
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginBottom: '0.5rem' }}>
+                              {s.descripcion_problema ? `"${s.descripcion_problema.slice(0, 120)}..."` : 'Sin descripción'}
+                            </div>
+                            {s.prestador_nombre && <div style={{ fontSize: '0.78rem', color: 'var(--v2)' }}>Prestador: <strong>{s.prestador_nombre}</strong></div>}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                            {cliente?.telefono && (
+                              <>
+                                <button className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem' }} onClick={() => setIntervenirModal({ telefono: cliente.telefono, nombre: `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim() })}>
+                                  <Send size={12} />Intervenir
+                                </button>
+                                <a href={`https://wa.me/${cliente.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem', textDecoration: 'none' }}>
+                                  <Phone size={12} />WA Cliente
+                                </a>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text3)', marginTop: '0.5rem' }}>
+                          ID: {s.id?.slice(0, 8)} · Creada: {new Date(s.created_at).toLocaleString('es-AR')}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              }
+            </div>
+          )}
+
+          {/* ════════ TAB: GESTIÓN SIN APP ════════ */}
+          {activeTab === 'externos' && (
+            <div>
+              <div className="adm-section-header">
+                <div className="adm-section-title"><Globe size={18} color="#9b8fff" />Prestadores Sin App</div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div className="adm-filter-pills">
+                    <div className={`adm-pill ${extTab === 'list' ? 'active' : ''}`} onClick={() => setExtTab('list')}>Prestadores</div>
+                    <div className={`adm-pill ${extTab === 'solicitudes' ? 'active' : ''}`} onClick={() => setExtTab('solicitudes')}>
+                      Solicitudes {solicitudesExt.filter(s => s.estado === 'pendiente_contacto').length > 0 && <span className="adm-nav-badge" style={{ marginLeft: 4 }}>{solicitudesExt.filter(s => s.estado === 'pendiente_contacto').length}</span>}
+                    </div>
+                  </div>
+                  {extTab === 'list' && <button className="adm-btn adm-btn-primary" onClick={() => { setShowExtForm(true); setEditingExt(null); setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '' }); }}><Plus size={14} />Nuevo</button>}
+                </div>
+              </div>
+
+              {/* SUB-TAB: LISTA */}
+              {extTab === 'list' && (
+                loadingExt
+                  ? <div className="adm-loading-center"><div className="adm-spinner"></div></div>
+                  : prestExtList.length === 0
+                  ? <div className="adm-empty"><div className="adm-empty-icon">🌐</div><p>Sin prestadores externos. ¡Crea el primero!</p></div>
+                  : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                    {prestExtList.map(p => (
+                      <div key={p.id} className="adm-glass-card" style={{ opacity: p.activo ? 1 : 0.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{p.nombre} {p.apellido || ''}</div>
+                            <span className="adm-badge" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: '#9b8fff', marginTop: 4 }}>{p.rubro}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem' }} onClick={() => { setEditingExt(p.id); setExtForm({ nombre: p.nombre, apellido: p.apellido || '', rubro: p.rubro, descripcion: p.descripcion || '', precio_hora: p.precio_hora || '', telefono: p.telefono || '', email: p.email || '', zona: p.zona || '', anos_experiencia: p.anos_experiencia || '' }); setShowExtForm(true); }}><Edit2 size={13} /></button>
+                            <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem', color: p.activo ? 'var(--red)' : 'var(--green)' }} onClick={() => handleToggleExt(p.id, p.activo)}>{p.activo ? <X size={13} /> : <CheckCircle size={13} />}</button>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: '0.5rem' }}>{p.descripcion?.slice(0, 100) || '—'}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.72rem', color: 'var(--text3)' }}>
+                          {p.precio_hora && <span>💰 ${Number(p.precio_hora).toLocaleString('es-AR')}/h</span>}
+                          {p.anos_experiencia > 0 && <span>⭐ {p.anos_experiencia} años exp.</span>}
+                          {p.zona && <span>📍 {p.zona}</span>}
+                          {p.telefono && <a href={`https://wa.me/${p.telefono}`} target="_blank" rel="noopener noreferrer" style={{ color: '#43e97b', textDecoration: 'none' }}>📱 WA</a>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+              )}
+
+              {/* SUB-TAB: SOLICITUDES MANUALES */}
+              {extTab === 'solicitudes' && (
+                loadingSolExt
+                  ? <div className="adm-loading-center"><div className="adm-spinner"></div></div>
+                  : solicitudesExt.length === 0
+                  ? <div className="adm-empty"><div className="adm-empty-icon">📬</div><p>Sin solicitudes manuales</p></div>
+                  : <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {solicitudesExt.map(s => {
+                      const mins = minutesAgo(s.created_at);
+                      const slaClass = mins < 30 ? 'sla-ok' : mins < 60 ? 'sla-warn' : 'sla-crit';
+                      const prest = s.prestador;
+                      const msgPrestador = prest ? encodeURIComponent(`Hola ${prest.nombre}, tenemos un cliente interesado en tu servicio de ${prest.rubro}. ¿Tenés disponibilidad?\n\nProblema del cliente: ${s.descripcion_problema || 'sin descripción'}\n\nContacto: ${s.nombre_cliente || ''} ${s.telefono_cliente ? `(${s.telefono_cliente})` : ''}`) : '';
+                      const msgCliente = s.telefono_cliente ? encodeURIComponent(`Hola${s.nombre_cliente ? ` ${s.nombre_cliente}` : ''}, te avisamos que ya estamos en contacto con el prestador para tu solicitud de ${s.categoria || 'servicio'}. En breve te confirmamos.`) : '';
+                      const estadoColors = { 'pendiente_contacto': '#f5c518', 'admin_contactado_prestador': '#6c63ff', 'prestador_confirmado': '#43e97b', 'cerrada': '#aaa', 'cancelada': '#888' };
+                      const ec = estadoColors[s.estado] || '#aaa';
+                      return (
+                        <div key={s.id} className={`adm-sol-card ${slaClass}`}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                                <span className="adm-badge" style={{ background: `${ec}22`, border: `1px solid ${ec}44`, color: ec }}>{s.estado?.replace(/_/g, ' ')}</span>
+                                <SlaIndicator createdAt={s.created_at} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
+                                <div>
+                                  <div style={{ color: 'var(--text3)', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em' }}>CLIENTE</div>
+                                  <div style={{ fontWeight: 600 }}>{s.nombre_cliente || 'Sin nombre'}</div>
+                                  <div style={{ color: 'var(--text3)' }}>{s.telefono_cliente || '—'}</div>
+                                </div>
+                                <div>
+                                  <div style={{ color: 'var(--text3)', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em' }}>PRESTADOR</div>
+                                  <div style={{ fontWeight: 600 }}>{prest?.nombre} {prest?.apellido || ''}</div>
+                                  <div style={{ color: 'var(--text3)' }}>{prest?.rubro} · {prest?.telefono || '—'}</div>
+                                </div>
+                              </div>
+                              {s.descripcion_problema && <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text2)', fontStyle: 'italic' }}>"{s.descripcion_problema.slice(0, 150)}"</div>}
+                              {s.notas_admin && <div style={{ marginTop: '0.5rem', fontSize: '0.72rem', background: 'rgba(108,99,255,0.08)', border: '1px solid var(--v-border)', borderRadius: 8, padding: '0.4rem 0.6rem', color: 'var(--v2)' }}>📝 {s.notas_admin}</div>}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 160 }}>
+                              {s.estado === 'pendiente_contacto' && <button className="adm-btn adm-btn-primary" style={{ fontSize: '0.72rem' }} onClick={() => { setNotaModal(s); setNotaTexto(''); }}><CheckCircle size={12} />Marcar Contactado</button>}
+                              {prest?.telefono && <a href={`https://wa.me/${prest.telefono}?text=${msgPrestador}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none', justifyContent: 'center' }}><Phone size={12} />WA Prestador</a>}
+                              {s.telefono_cliente && <a href={`https://wa.me/${s.telefono_cliente}?text=${msgCliente}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem', textDecoration: 'none', justifyContent: 'center' }}><Phone size={12} />WA Cliente</a>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+              )}
+            </div>
+          )}
+
+          {/* ════════ TAB: PAGOS PENDIENTES ════════ */}
+          {activeTab === 'pagos-pendientes' && (
+            <div>
+              <div className="adm-section-header">
+                <div className="adm-section-title"><DollarSign size={18} color="#43e97b" />Pagos Listos para Transferir</div>
+                <button className="adm-btn adm-btn-ghost" onClick={fetchPagosPendientes} disabled={loadingPagos}><RefreshCw size={14} />{loadingPagos ? 'Cargando...' : 'Actualizar'}</button>
+              </div>
+              {loadingPagos ? <div className="adm-loading-center"><div className="adm-spinner"></div></div>
+                : pagosPendientes.length === 0
+                ? <div className="adm-empty"><div className="adm-empty-icon">✅</div><p>Sin pagos pendientes</p></div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {pagosPendientes.map(p => (
+                    <div key={p.transaccion_id} className="adm-glass-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.5rem' }}>{p.solicitudes?.prestadores?.nombre_completo}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text2)' }}>Servicio: {p.solicitudes?.servicios?.titulo || '—'}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text2)' }}>CBU: <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{p.solicitudes?.prestadores?.cuenta_bancaria_cbu || '—'}</span></div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text2)' }}>Alias: {p.solicitudes?.prestadores?.cuenta_bancaria_alias || '—'}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text2)' }}>Titular: {p.solicitudes?.prestadores?.cuenta_bancaria_titular || '—'}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#43e97b', fontFamily: 'Space Grotesk, sans-serif' }}>${parseFloat(p.monto_retenido).toFixed(2)}</div>
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button className="adm-btn adm-btn-ghost" onClick={() => { const d = p.solicitudes?.prestadores; navigator.clipboard.writeText(`Monto: $${p.monto_retenido}\nCBU: ${d?.cuenta_bancaria_cbu}\nAlias: ${d?.cuenta_bancaria_alias}\nTitular: ${d?.cuenta_bancaria_titular}`); }}><Copy size={13} />Copiar</button>
+                            <button className="adm-btn adm-btn-primary" onClick={() => handleProcesarPago(p)}><CheckCircle size={13} />Confirmar Pago</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              }
+            </div>
+          )}
+
+          {/* ════════ TAB: REPORTES ════════ */}
+          {activeTab === 'reportes' && (
+            <div>
+              <div className="adm-section-header">
+                <div className="adm-section-title"><AlertTriangle size={18} color="#f5c518" />Reportes</div>
+                <button className="adm-btn adm-btn-ghost" onClick={fetchReportes}><RefreshCw size={14} />Actualizar</button>
+              </div>
+              <div className="adm-glass-card">
+                <table className="adm-table">
+                  <thead><tr><th>Servicio</th><th>Cliente</th><th>Prestador</th><th>Motivo</th><th>Estado</th><th>Acciones</th></tr></thead>
+                  <tbody>
+                    {reportes.map(r => (
+                      <tr key={r.reporte_id}>
+                        <td style={{ color: 'var(--text)' }}>{r.servicio?.titulo || '—'}</td>
+                        <td>{r.cliente?.nombre_completo || '—'}</td>
+                        <td>{r.prestador?.nombre_completo || '—'}</td>
+                        <td style={{ maxWidth: 200 }}><div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.motivo || '—'}</div></td>
+                        <td><span className="adm-badge" style={{ background: r.estado === 'PENDIENTE' ? 'rgba(245,197,24,0.15)' : 'rgba(67,233,123,0.15)', border: r.estado === 'PENDIENTE' ? '1px solid rgba(245,197,24,0.4)' : '1px solid rgba(67,233,123,0.4)', color: r.estado === 'PENDIENTE' ? '#f5c518' : '#43e97b' }}>{r.estado}</span></td>
+                        <td>
+                          {r.estado === 'PENDIENTE' && (
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                              <button className="adm-btn adm-btn-primary" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }} onClick={() => handleCambiarEstadoReporte(r.reporte_id, 'RESUELTO')}>Resolver</button>
+                              <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }} onClick={() => handleCambiarEstadoReporte(r.reporte_id, 'RECHAZADO')}>Rechazar</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {reportes.length === 0 && <div className="adm-empty"><div className="adm-empty-icon">🚨</div><p>Sin reportes</p></div>}
+              </div>
+            </div>
+          )}
+
+          {/* ════════ TAB: SOPORTE ════════ */}
+          {activeTab === 'soporte' && (
+            <div style={{ display: 'grid', gridTemplateColumns: selectedTicket ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
+              <div>
+                <div className="adm-section-header">
+                  <div className="adm-section-title"><MessageSquare size={18} color="#6c63ff" />Tickets Abiertos</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {supportTickets.length === 0
+                    ? <div className="adm-empty"><div className="adm-empty-icon">💬</div><p>Sin tickets abiertos</p></div>
+                    : supportTickets.map(t => (
+                      <div key={t.ticket_id} className="adm-glass-card" style={{ cursor: 'pointer', border: selectedTicket?.ticket_id === t.ticket_id ? '1px solid var(--v)' : undefined }} onClick={() => fetchTicketMessages(t)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{t.nombre_usuario}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text3)' }}>{t.email}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginTop: '0.3rem' }}>{t.motivo || t.tipo}</div>
+                          </div>
+                          {t.unread_count > 0 && <span className="adm-nav-badge">{t.unread_count}</span>}
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+
+              {selectedTicket && (
+                <div className="adm-glass-card" style={{ display: 'flex', flexDirection: 'column', height: 600 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{selectedTicket.nombre_usuario}</div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="adm-btn adm-btn-danger" style={{ fontSize: '0.75rem' }} onClick={handleCloseTicket}>Cerrar Ticket</button>
+                      <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem' }} onClick={() => setSelectedTicket(null)}><X size={14} /></button>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.5rem' }}>
+                    {ticketMessages.map(msg => (
+                      <div key={msg.message_id} style={{ display: 'flex', justifyContent: msg.es_admin ? 'flex-end' : 'flex-start' }}>
+                        <div style={{ maxWidth: '75%', padding: '0.6rem 0.9rem', borderRadius: msg.es_admin ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: msg.es_admin ? 'linear-gradient(135deg, var(--v), #4a43cc)' : 'rgba(255,255,255,0.06)', fontSize: '0.82rem', color: 'var(--text)', lineHeight: 1.5 }}>
+                          {msg.message}
+                          <div style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.25rem', textAlign: 'right' }}>{new Date(msg.created_at).toLocaleTimeString('es-AR')}</div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={chatEndRef} />
+                  </div>
+                  <form onSubmit={handleSendAdminMessage} style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                    <input className="adm-input" value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="Escribir respuesta..." />
+                    <button type="submit" className="adm-btn adm-btn-primary" disabled={sendingAdminMessage}><Send size={14} /></button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ════════ TAB: PRESTADORES ════════ */}
+          {activeTab === 'prestadores' && (
+            <div>
+              <div className="adm-section-header">
+                <div className="adm-section-title"><Users size={18} color="#6c63ff" />Prestadores con App</div>
+              </div>
+              <div className="adm-glass-card">
+                <table className="adm-table">
+                  <thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Calificación</th><th>Estado</th></tr></thead>
+                  <tbody>
+                    {prestadoresList.map(p => (
+                      <tr key={p.prestador_id}>
+                        <td style={{ color: 'var(--text)', fontWeight: 600 }}>{p.nombre_completo}</td>
+                        <td>{p.usuario?.email || '—'}</td>
+                        <td>{p.usuario?.telefono || '—'}</td>
+                        <td>
+                          <span style={{ color: '#f5c518', fontWeight: 700 }}>★ {p.calificacion_promedio?.toFixed(1) || '—'}</span>
+                        </td>
+                        <td>
+                          <span className="adm-badge" style={{ background: p.membresia_activa ? 'rgba(67,233,123,0.15)' : 'rgba(255,77,109,0.15)', border: p.membresia_activa ? '1px solid rgba(67,233,123,0.3)' : '1px solid rgba(255,77,109,0.3)', color: p.membresia_activa ? '#43e97b' : '#ff4d6d' }}>
+                            {p.membresia_activa ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {prestadoresList.length === 0 && <div className="adm-empty"><div className="adm-empty-icon">🔧</div><p>Sin prestadores</p></div>}
+              </div>
+            </div>
+          )}
+
+          {/* ════════ TAB: ESTADÍSTICAS ════════ */}
+          {activeTab === 'estadisticas' && (
+            <div>
+              <div className="adm-section-title" style={{ marginBottom: '1.5rem' }}><BarChart3 size={18} color="#6c63ff" />Estadísticas Generales</div>
+              <div className="adm-stats-grid">
+                {[
+                  { label: 'Total Prestadores App', value: stats.prestadores, color: '#6c63ff' },
+                  { label: 'Total Clientes', value: stats.clientes, color: '#43e97b' },
+                  { label: 'Solicitudes hoy', value: stats.solicitudesHoy, color: '#f5c518' },
+                  { label: 'Conversaciones activas', value: convActivas.length, color: '#ff4d6d' },
+                  { label: 'Prestadores externos', value: prestExtList.length, color: '#9b8fff' },
+                  { label: 'Solicitudes sin app', value: solicitudesExt.length, color: '#43e97b' },
+                  { label: 'Pagos a liquidar', value: pagosPendientes.length, color: '#f5c518' },
+                  { label: 'Tickets abiertos', value: supportTickets.length, color: '#ff4d6d' },
+                ].map((s, i) => (
+                  <div key={i} className="adm-stat-card">
+                    <div className="stat-value" style={{ color: s.color, fontSize: '1.8rem' }}>{s.value}</div>
+                    <div className="stat-label">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* ── MODAL: INTERVENIR ── */}
+      {intervenirModal && (
+        <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && setIntervenirModal(null)}>
+          <div className="adm-modal">
+            <div className="adm-modal-title"><Send size={18} color="#6c63ff" style={{ marginRight: 8 }} />Intervenir en conversación</div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: '1rem' }}>Este mensaje llegará al cliente <strong>{intervenirModal.nombre}</strong> ({intervenirModal.telefono}) a través del bot de WhatsApp.</p>
+            <div className="adm-form-group">
+              <label className="adm-label">Mensaje</label>
+              <textarea className="adm-input" rows={4} value={intervenirMsg} onChange={e => setIntervenirMsg(e.target.value)} placeholder="Escribe el mensaje para el cliente..." style={{ resize: 'vertical' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+              <button className="adm-btn adm-btn-ghost" onClick={() => setIntervenirModal(null)}>Cancelar</button>
+              <button className="adm-btn adm-btn-primary" disabled={sendingMsg || !intervenirMsg.trim()} onClick={handleIntervenir}><Send size={14} />{sendingMsg ? 'Enviando...' : 'Enviar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: FORMULARIO PRESTADOR EXTERNO ── */}
+      {showExtForm && (
+        <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && setShowExtForm(false)}>
+          <div className="adm-modal" style={{ maxWidth: 640 }}>
+            <div className="adm-modal-title"><Globe size={18} color="#6c63ff" style={{ marginRight: 8 }} />{editingExt ? 'Editar' : 'Nuevo'} Prestador Externo</div>
+            <div className="adm-form-grid">
+              {[
+                { key: 'nombre', label: 'Nombre *', placeholder: 'Juan' },
+                { key: 'apellido', label: 'Apellido', placeholder: 'Pérez' },
+              ].map(f => (
+                <div key={f.key} className="adm-form-group">
+                  <label className="adm-label">{f.label}</label>
+                  <input className="adm-input" value={extForm[f.key]} onChange={e => setExtForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+                </div>
+              ))}
+              <div className="adm-form-group">
+                <label className="adm-label">Rubro *</label>
+                <select className="adm-input adm-select" value={extForm.rubro} onChange={e => setExtForm(p => ({ ...p, rubro: e.target.value }))}>
+                  {RUBROS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              {[
+                { key: 'precio_hora', label: 'Precio/hora ($)', placeholder: '5000', type: 'number' },
+                { key: 'anos_experiencia', label: 'Años experiencia', placeholder: '3', type: 'number' },
+                { key: 'telefono', label: 'Teléfono WhatsApp', placeholder: '5493435...' },
+                { key: 'email', label: 'Email', placeholder: 'juan@email.com', type: 'email' },
+                { key: 'zona', label: 'Zona / Barrio', placeholder: 'Concordia, Entre Ríos' },
+              ].map(f => (
+                <div key={f.key} className="adm-form-group">
+                  <label className="adm-label">{f.label}</label>
+                  <input className="adm-input" type={f.type || 'text'} value={extForm[f.key]} onChange={e => setExtForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+                </div>
+              ))}
+            </div>
+            <div className="adm-form-group" style={{ marginTop: '1rem' }}>
+              <label className="adm-label">Descripción del servicio</label>
+              <textarea className="adm-input" rows={3} value={extForm.descripcion} onChange={e => setExtForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción breve del servicio que ofrece..." style={{ resize: 'vertical' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+              <button className="adm-btn adm-btn-ghost" onClick={() => setShowExtForm(false)}>Cancelar</button>
+              <button className="adm-btn adm-btn-primary" onClick={handleSaveExt}><CheckCircle size={14} />Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: MARCAR CONTACTADO ── */}
+      {notaModal && (
+        <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && setNotaModal(null)}>
+          <div className="adm-modal">
+            <div className="adm-modal-title"><CheckCircle size={18} color="#43e97b" style={{ marginRight: 8 }} />Marcar como Contactado</div>
+            <div className="adm-form-group">
+              <label className="adm-label">Nota de gestión (opcional)</label>
+              <textarea className="adm-input" rows={4} value={notaTexto} onChange={e => setNotaTexto(e.target.value)} placeholder="Ej: Llamé al prestador, confirmó disponibilidad para el martes..." style={{ resize: 'vertical' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+              <button className="adm-btn adm-btn-ghost" onClick={() => setNotaModal(null)}>Cancelar</button>
+              <button className="adm-btn adm-btn-primary" onClick={handleMarcarContactado}><CheckCircle size={14} />Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default AdminDashboard;
