@@ -118,26 +118,88 @@ export default function LoginPage() {
             ← Volver al inicio
           </button>
 
-          <div className="login-page__form-header" style={{ textAlign: 'center' }}>
-            <h1 className="heading-md" style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Próximamente</h1>
-            <p className="login-page__subtitle" style={{ fontSize: '1.1rem' }}>
-              La versión web de Uniwork está en desarrollo. Pronto podrás iniciar sesión y gestionar tus servicios desde aquí.
-            </p>
+          <div className="login-page__form-header">
+            <h1 className="heading-md">{titles[mode]}</h1>
+            <p className="login-page__subtitle">{subtitles[mode]}</p>
           </div>
 
-          <div style={{
-            background: 'rgba(108, 99, 255, 0.1)',
-            border: '1px solid var(--color-primary)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '2rem',
-            textAlign: 'center',
-            marginTop: '2rem'
-          }}>
-            <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>🚀</span>
-            <h3 className="heading-sm" style={{ color: 'var(--color-primary-light)' }}>¡Estamos trabajando duro!</h3>
-            <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.9rem' }}>
-              Por el momento te invitamos a usar nuestra aplicación móvil disponible en Android.
-            </p>
+          <form className="login-page__form" onSubmit={handleSubmit}>
+            {error && <div className="login-page__alert login-page__alert--error">{error}</div>}
+            {successMsg && <div className="login-page__alert login-page__alert--success">{successMsg}</div>}
+
+            {mode === 'signup' && (
+              <>
+                <div className="login-page__input-group">
+                  <label htmlFor="fullName">Nombre completo</label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Ej. Juan Pérez"
+                    required
+                  />
+                </div>
+                <div className="login-page__input-group">
+                  <label>Tipo de cuenta</label>
+                  <div className="login-page__role-selector" style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input type="radio" name="role" value="client" checked={role === 'client'} onChange={(e) => setRole(e.target.value)} />
+                      Quiero contratar
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input type="radio" name="role" value="provider" checked={role === 'provider'} onChange={(e) => setRole(e.target.value)} />
+                      Quiero trabajar
+                    </label>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="login-page__input-group">
+              <label htmlFor="email">Correo electrónico</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                required
+              />
+            </div>
+
+            {mode !== 'forgot' && (
+              <div className="login-page__input-group">
+                <div className="login-page__label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <label htmlFor="password">Contraseña</label>
+                  {mode === 'login' && (
+                    <button type="button" className="login-page__forgot-btn" onClick={() => setMode('forgot')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}>
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  )}
+                </div>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            )}
+
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: '1rem' }}>
+              {loading ? 'Cargando...' : mode === 'login' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar enlace'}
+            </button>
+          </form>
+
+          <div className="login-page__footer" style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            {mode === 'login' ? (
+              <p>¿No tienes cuenta? <button type="button" onClick={() => setMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontWeight: 'bold' }}>Regístrate</button></p>
+            ) : (
+              <p>¿Ya tienes cuenta? <button type="button" onClick={() => setMode('login')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontWeight: 'bold' }}>Inicia sesión</button></p>
+            )}
           </div>
         </div>
       </div>
