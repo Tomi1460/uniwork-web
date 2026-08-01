@@ -544,9 +544,16 @@ const AdminDashboard = () => {
   };
 
   const handleBloquearCliente = async (id, nombre) => {
-    if (!confirm(`¿Bloquear a ${nombre || 'este cliente'}?`)) return;
+    if (!confirm(`¿Bloquear a ${nombre || 'este cliente'}? No podrá hacer nuevas solicitudes.`)) return;
     await supabase.from('clientes_whatsapp').update({ bloqueado_por_deuda: true }).eq('id', id);
     addFeedItem(`Cliente ${nombre || id.slice(0,8)} bloqueado`, '🚫');
+    fetchConvActivas();
+  };
+
+  const handleDesbloquearCliente = async (id, nombre) => {
+    if (!confirm(`¿Desbloquear a ${nombre || 'este cliente'}? Podrá volver a hacer solicitudes.`)) return;
+    await supabase.from('clientes_whatsapp').update({ bloqueado_por_deuda: false }).eq('id', id);
+    addFeedItem(`Cliente ${nombre || id.slice(0,8)} desbloqueado`, '🟢');
     fetchConvActivas();
   };
 
@@ -856,12 +863,21 @@ const AdminDashboard = () => {
                             title="Resetear la conversación: vuelve al estado 'listo para pedir', útil si el cliente quedó atascado en un paso"
                             onClick={() => handleResetConv(c.id)}
                           ><RotateCcw size={12} />Resetear</button>
-                          <button
-                            className="adm-btn adm-btn-danger"
-                            style={{ fontSize: '0.72rem' }}
-                            title="Bloquear por deuda: el cliente no podrá hacer nuevas solicitudes hasta que regularice un pago pendiente"
-                            onClick={() => handleBloquearCliente(c.id, c.nombre)}
-                          ><UserX size={12} />Bloquear</button>
+                          {c.bloqueado_por_deuda ? (
+                            <button
+                              className="adm-btn"
+                              style={{ fontSize: '0.72rem', background: 'rgba(67,233,123,0.12)', border: '1px solid rgba(67,233,123,0.35)', color: '#43e97b' }}
+                              title="Desbloquear: el cliente podrá volver a hacer solicitudes"
+                              onClick={() => handleDesbloquearCliente(c.id, c.nombre)}
+                            ><CheckCircle size={12} />Desbloquear</button>
+                          ) : (
+                            <button
+                              className="adm-btn adm-btn-danger"
+                              style={{ fontSize: '0.72rem' }}
+                              title="Bloquear por deuda: el cliente no podrá hacer nuevas solicitudes hasta que regularice un pago pendiente"
+                              onClick={() => handleBloquearCliente(c.id, c.nombre)}
+                            ><UserX size={12} />Bloquear</button>
+                          )}
                           {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none' }} title="Abrir chat de WhatsApp con este cliente"><Phone size={12} />WA</a>}
                         </div>
                         {selectedConv?.id === c.id && (() => {
