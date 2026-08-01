@@ -521,21 +521,50 @@ const AdminDashboard = () => {
     setActivityFeed(prev => [{ id: Date.now(), msg, icon, ts: new Date() }, ...prev].slice(0, 50));
   }, []);
 
-  // Realtime: Monitor Bot
+  // Realtime: Monitor Global (Actualización Automática de TODO el panel)
   useEffect(() => {
-    const ch = supabase.channel('admin-bot-monitor')
+    const ch = supabase.channel('admin-global-monitor')
+      // ── MONITOR BOT ──
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes_whatsapp' }, (pl) => {
-        fetchConvActivas();
+        fetchConvActivas(); fetchStats();
         if (pl.eventType === 'UPDATE') addFeedItem(`${pl.new.nombre || 'Cliente'} — ${ESTADO_LABELS[pl.new.paso_conversacion] || pl.new.paso_conversacion}`, '💬');
         if (pl.eventType === 'INSERT') addFeedItem(`Nuevo cliente registrado: ${pl.new.telefono}`, '👋');
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_whatsapp' }, (pl) => {
-        fetchSolicitudesApp();
+        fetchSolicitudesApp(); fetchStats();
         if (pl.eventType === 'INSERT') addFeedItem(`Nueva solicitud creada (${pl.new.categoria_identificada})`, '📋');
         if (pl.eventType === 'UPDATE') addFeedItem(`Solicitud ${pl.new.id?.slice(0,8)} → ${pl.new.estado}`, '🔄');
       })
+      // ── SIN APP (EXTERNOS) ──
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitudes_externas' }, (pl) => {
+        fetchSolicitudesExt(); fetchStats();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nueva Solicitud Sin App (${pl.new.categoria})`, '🌐');
+        if (pl.eventType === 'UPDATE') addFeedItem(`Solicitud Sin App → ${pl.new.estado}`, '🔄');
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prestadores_externos' }, (pl) => {
+        fetchPrestExtList(); fetchStats();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nuevo Prestador Sin App registrado`, '🛠️');
+      })
+      // ── PAGOS Y RESERVAS ──
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transacciones_reservas' }, (pl) => {
+        fetchPagosPendientes(); fetchStats();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nuevo pago de reserva registrado`, '💰');
+        if (pl.eventType === 'UPDATE') addFeedItem(`Estado de pago actualizado → ${pl.new.estado}`, '💸');
+      })
+      // ── SOPORTE ──
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, (pl) => {
+        fetchSoporteList();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nuevo ticket de soporte abierto`, '🎫');
+      })
+      // ── PRESTADORES CON APP ──
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prestadores' }, (pl) => {
+        fetchPrestadoresData(); fetchStats();
+        if (pl.eventType === 'INSERT') addFeedItem(`Nuevo Prestador Con App registrado`, '👷');
+      })
       .subscribe();
+      
     return () => supabase.removeChannel(ch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addFeedItem]);
 
   const handleResetConv = async (id, telefono) => {
