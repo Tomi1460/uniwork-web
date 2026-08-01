@@ -138,15 +138,23 @@ export default function PrestadorProfile() {
                 });
                 if (error) throw error;
                 
-                // Llamar al backend para enviar WhatsApp
+                // Notificar vía base de datos (Cola de Mensajes)
                 try {
-                    await fetch(`${API_BASE}/api/admin/notificar-nueva-solicitud-externa`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ waId })
+                    const mensaje = 'Su solicitud se realizo con exito, le enviaremos un mensaje cuando el prestador acepte su solicitud. Muchas gracias por confiar en uniwork';
+                    await supabase.from('whatsapp_queue').insert({
+                        telefono: clienteData.telefono,
+                        mensaje: mensaje
                     });
+
+                    const datosTemp = clienteData.datos_temporales || {};
+                    datosTemp.web_solicitud_notificada = true;
+
+                    await supabase.from('clientes_whatsapp').update({ 
+                        paso_conversacion: 'ESPERANDO_ACEPTACION',
+                        datos_temporales: datosTemp
+                    }).eq('id', waId);
                 } catch (notifyErr) {
-                    console.error("Error notificando por WA:", notifyErr);
+                    console.error("Error encolando mensaje WA:", notifyErr);
                 }
             } else {
                 const { data, error } = await supabase.rpc('crear_solicitud_whatsapp', {

@@ -538,11 +538,14 @@ const AdminDashboard = () => {
     return () => supabase.removeChannel(ch);
   }, [addFeedItem]);
 
-  const handleResetConv = async (id) => {
+  const handleResetConv = async (id, telefono) => {
     if (!confirm('¿Resetear la conversación de este cliente?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/reset-cliente/${id}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Error al resetear en backend');
+      await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: {} }).eq('id', id);
+      
+      const mensajeAviso = 'Hemos reseteado tu estado manualmene. Escribinos tu rubro (plomería, electricidad, etc) para empezar de nuevo.';
+      await supabase.from('whatsapp_queue').insert({ telefono, mensaje: `📢 *Aviso de Uniwork*\n\n${mensajeAviso}` });
+      
       addFeedItem('Conversación reseteada y notificada', '🔄');
       fetchConvActivas();
     } catch(e) {
@@ -551,11 +554,21 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleEliminarSolicitud = async (id) => {
+  const handleEliminarSolicitud = async (id, telefono, dt) => {
     if (!confirm('¿Estás seguro de ELIMINAR/CANCELAR la solicitud activa de este cliente para ambos? Se le notificará al cliente por WhatsApp y podrá pedir otra.')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/eliminar-solicitud/${id}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Error al eliminar en backend');
+      const dtObj = dt || {};
+      if (dtObj.solicitud_activa_id) {
+        await supabase.from('solicitudes_whatsapp').update({ estado: 'cancelada' }).eq('id', dtObj.solicitud_activa_id);
+      } else if (dtObj.solicitud_id) {
+        await supabase.from('solicitudes').update({ estado: 'CANCELADO' }).eq('solicitud_id', dtObj.solicitud_id);
+      }
+
+      await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: { timestamp_inicio: Date.now() } }).eq('id', id);
+
+      const msg = `📢 *Aviso de Uniwork*\n\nTu solicitud anterior fue cancelada por la administración.\n¿En qué otro servicio te podemos ayudar?`;
+      await supabase.from('whatsapp_queue').insert({ telefono, mensaje: msg });
+
       addFeedItem('Solicitud eliminada y cliente notificado', '🗑️');
       fetchConvActivas();
     } catch(e) {
@@ -593,16 +606,19 @@ const AdminDashboard = () => {
     if (!intervenirMsg.trim() || !intervenirModal) return;
     setSendingMsg(true);
     try {
-      await fetch(`${API_BASE}/api/admin/intervenir`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telefono_cliente: intervenirModal.telefono, mensaje: intervenirMsg.trim() })
+      await supabase.from('whatsapp_queue').insert({ 
+        telefono: intervenirModal.telefono, 
+        mensaje: `📢 *Mensaje de Uniwork:*\n\n${intervenirMsg.trim()}` 
       });
-      addFeedItem(`Intervención enviada a ${intervenirModal.nombre}`, '📤');
-      setIntervenirMsg('');
+
+      addFeedItem(`Mensaje enviado a ${intervenirModal.telefono}`, '✉️');
       setIntervenirModal(null);
-    } catch (e) { alert('Error al enviar: ' + e.message); }
-    setSendingMsg(false);
+      setIntervenirMsg('');
+    } catch (e) {
+      alert('Error enviando mensaje: ' + e.message);
+    } finally {
+      setSendingMsg(false);
+    }
   };
 
   const solFiltradas = solicitudesApp.filter(s => {
@@ -886,43 +902,26 @@ const AdminDashboard = () => {
                             <div style={{ fontSize: '0.68rem', color: 'var(--text3)', marginTop: 2 }}><Clock size={10} style={{ display: 'inline', marginRight: 3 }} />{timeAgo(c.updated_at)}</div>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button
-                            className="adm-btn adm-btn-ghost"
-                            style={{ fontSize: '0.72rem' }}
-                            title="Ver ficha completa del cliente y el estado de su conversación"
-                            onClick={() => setSelectedConv(selectedConv?.id === c.id ? null : c)}
-                          ><Eye size={12} />Detalle</button>
-                          <button
-                            className="adm-btn adm-btn-ghost"
-                            style={{ fontSize: '0.72rem' }}
-                            title="Resetear la conversación: vuelve al estado 'listo para pedir', útil si el cliente quedó atascado en un paso"
-                            onClick={() => handleResetConv(c.id)}
-                          ><RotateCcw size={12} />Resetear</button>
-                          {(c.datos_temporales?.solicitud_activa_id || c.datos_temporales?.solicitud_id) && (
-                            <button
-                              className="adm-btn adm-btn-danger"
-                              style={{ fontSize: '0.72rem', background: 'rgba(255,59,48,0.1)' }}
-                              title="Eliminar solicitud: Cancela la solicitud actual, saca al prestador, y reinicia al cliente para que pida otra vez"
-                              onClick={() => handleEliminarSolicitud(c.id)}
-                            ><Trash2 size={12} />Eliminar Sol.</button>
-                          )}
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                          <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }} onClick={() => setIntervenirModal(c)}><MessageSquare size={12} />Escribir</button>
+                          <button className="adm-btn adm-btn-yellow" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }} onClick={() => handleResetConv(c.id, c.telefono)}><RefreshCw size={12} />Reset</button>
+                          <button className="adm-btn adm-btn-danger" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }} onClick={() => handleEliminarSolicitud(c.id, c.telefono, c.datos_temporales)}><X size={12} />Cancelar Req</button>
                           {c.bloqueado_por_deuda ? (
                             <button
                               className="adm-btn"
-                              style={{ fontSize: '0.72rem', background: 'rgba(67,233,123,0.12)', border: '1px solid rgba(67,233,123,0.35)', color: '#43e97b' }}
-                              title="Desbloquear: el cliente podrá volver a hacer solicitudes"
+                              style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem', background: 'rgba(67,233,123,0.12)', border: '1px solid rgba(67,233,123,0.35)', color: '#43e97b' }}
+                              title="Desbloquear"
                               onClick={() => handleDesbloquearCliente(c.id, c.nombre)}
                             ><CheckCircle size={12} />Desbloquear</button>
                           ) : (
                             <button
                               className="adm-btn adm-btn-danger"
-                              style={{ fontSize: '0.72rem' }}
-                              title="Bloquear por deuda: el cliente no podrá hacer nuevas solicitudes hasta que regularice un pago pendiente"
+                              style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}
+                              title="Bloquear por deuda"
                               onClick={() => handleBloquearCliente(c.id, c.nombre)}
                             ><UserX size={12} />Bloquear</button>
                           )}
-                          {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none' }} title="Abrir chat de WhatsApp con este cliente"><Phone size={12} />WA</a>}
+                          {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-ghost" style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem', textDecoration: 'none' }} title="Abrir chat de WhatsApp con este cliente"><Phone size={12} />WA</a>}
                         </div>
                         {selectedConv?.id === c.id && (() => {
                           const dt = c.datos_temporales || {};
@@ -941,7 +940,7 @@ const AdminDashboard = () => {
                             { label: 'Bloqueado por deuda', value: c.bloqueado_por_deuda ? '🔴 SÍ' : '🟢 No' },
                           ];
                           return (
-                            <div style={{ background: 'rgba(108,99,255,0.05)', borderRadius: 10, padding: '0.9rem 1rem', border: '1px solid var(--v-border)' }}>
+                            <div style={{ background: 'rgba(108,99,255,0.05)', borderRadius: 10, padding: '0.9rem 1rem', border: '1px solid var(--v-border)', marginTop: '0.5rem' }}>
                               <div style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--v2)', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>📋 FICHA DE CONVERSACIÓN</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1.5rem' }}>
                                 {rows.map(({ label, value }) => (
