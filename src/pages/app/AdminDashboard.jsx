@@ -605,13 +605,14 @@ const AdminDashboard = () => {
   const handleIntervenir = async () => {
     if (!intervenirMsg.trim() || !intervenirModal) return;
     setSendingMsg(true);
+    const tel = intervenirModal.telefono || intervenirModal.telefono_cliente;
     try {
       await supabase.from('whatsapp_queue').insert({ 
-        telefono: intervenirModal.telefono, 
+        telefono: tel, 
         mensaje: `📢 *Mensaje de Uniwork:*\n\n${intervenirMsg.trim()}` 
       });
 
-      addFeedItem(`Mensaje enviado a ${intervenirModal.telefono}`, '✉️');
+      addFeedItem(`Mensaje enviado a ${tel}`, '✉️');
       setIntervenirModal(null);
       setIntervenirMsg('');
     } catch (e) {
@@ -699,9 +700,22 @@ const AdminDashboard = () => {
 
   const handleMarcarContactado = async () => {
     if (!notaModal) return;
-    await supabase.from('solicitudes_externas').update({ estado: 'admin_contactado_prestador', notas_admin: notaTexto, updated_at: new Date().toISOString() }).eq('id', notaModal.id);
-    setNotaModal(null); setNotaTexto('');
-    fetchSolicitudesExt();
+    try {
+      await supabase.from('solicitudes_externas').update({ estado: 'admin_contactado_prestador', notas_admin: notaTexto, updated_at: new Date().toISOString() }).eq('id', notaModal.id);
+      
+      // Enviar el mensaje al cliente si se escribió una nota y existe su teléfono
+      if (notaTexto.trim() && notaModal.telefono_cliente) {
+        await supabase.from('whatsapp_queue').insert({ 
+          telefono: notaModal.telefono_cliente, 
+          mensaje: `📢 *Aviso de Uniwork:*\n\n${notaTexto.trim()}` 
+        });
+      }
+
+      setNotaModal(null); setNotaTexto('');
+      fetchSolicitudesExt();
+    } catch (error) {
+      alert('Error al marcar como contactado: ' + error.message);
+    }
   };
 
   // ── Pagos / Soporte (existing logic simplified) ───────────────────────────
@@ -1157,6 +1171,7 @@ const AdminDashboard = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 160 }}>
                               {s.estado === 'pendiente_contacto' && <button className="adm-btn adm-btn-primary" style={{ fontSize: '0.72rem' }} onClick={() => { setNotaModal(s); setNotaTexto(''); }}><CheckCircle size={12} />Marcar Contactado</button>}
                               {prest?.telefono && <a href={`https://wa.me/${prest.telefono}?text=${msgPrestador}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none', justifyContent: 'center' }}><Phone size={12} />WA Prestador</a>}
+                              {s.telefono_cliente && <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem', justifyContent: 'center', borderColor: 'var(--v-border)' }} onClick={() => setIntervenirModal(s)}><MessageSquare size={12} color="var(--v)" />Escribir (Bot)</button>}
                               {s.telefono_cliente && <a href={`https://wa.me/${s.telefono_cliente}?text=${msgCliente}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem', textDecoration: 'none', justifyContent: 'center' }}><Phone size={12} />WA Cliente</a>}
                             </div>
                           </div>
@@ -1358,7 +1373,7 @@ const AdminDashboard = () => {
         <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && setIntervenirModal(null)}>
           <div className="adm-modal">
             <div className="adm-modal-title"><Send size={18} color="#6c63ff" style={{ marginRight: 8 }} />Intervenir en conversación</div>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: '1rem' }}>Este mensaje llegará al cliente <strong>{intervenirModal.nombre}</strong> ({intervenirModal.telefono}) a través del bot de WhatsApp.</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text2)', marginBottom: '1rem' }}>Este mensaje llegará al cliente <strong>{intervenirModal.nombre || intervenirModal.nombre_cliente}</strong> ({intervenirModal.telefono || intervenirModal.telefono_cliente}) a través del bot de WhatsApp.</p>
             <div className="adm-form-group">
               <label className="adm-label">Mensaje</label>
               <textarea className="adm-input" rows={4} value={intervenirMsg} onChange={e => setIntervenirMsg(e.target.value)} placeholder="Escribe el mensaje para el cliente..." style={{ resize: 'vertical' }} />
