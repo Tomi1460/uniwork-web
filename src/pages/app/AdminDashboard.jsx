@@ -541,7 +541,7 @@ const AdminDashboard = () => {
   const handleResetConv = async (id, telefono) => {
     if (!confirm('¿Resetear la conversación de este cliente?')) return;
     try {
-      await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: {} }).eq('id', id);
+      await supabase.from('clientes_whatsapp').update({ paso_conversacion: 'COMPLETADO', datos_temporales: { timestamp_inicio: Date.now() } }).eq('id', id);
       
       const mensajeAviso = 'Hemos reseteado tu estado manualmene. Escribinos tu rubro (plomería, electricidad, etc) para empezar de nuevo.';
       await supabase.from('whatsapp_queue').insert({ telefono, mensaje: `📢 *Aviso de Uniwork*\n\n${mensajeAviso}` });
