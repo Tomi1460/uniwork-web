@@ -457,6 +457,11 @@ const AdminDashboard = () => {
   const [notaModal, setNotaModal] = useState(null);
   const [notaTexto, setNotaTexto] = useState('');
 
+  // ── Imagen prestador externo ──
+  const [extImagen, setExtImagen] = useState(null); // File object
+  const [extImagenPreview, setExtImagenPreview] = useState(null); // URL preview
+  const extImagenInputRef = useRef(null);
+
   // ── Pagos / Reportes (existing) ──
   const [pagosPendientes, setPagosPendientes] = useState([]);
   const [reportes, setReportes] = useState([]);
@@ -597,14 +602,34 @@ const AdminDashboard = () => {
 
   const handleSaveExt = async () => {
     if (!extForm.nombre || !extForm.rubro) { alert('Nombre y rubro son obligatorios'); return; }
-    const payload = { ...extForm, rubro_slug: RUBRO_SLUGS[extForm.rubro] || extForm.rubro.toLowerCase(), precio_hora: extForm.precio_hora ? parseFloat(extForm.precio_hora) : null, anos_experiencia: extForm.anos_experiencia ? parseInt(extForm.anos_experiencia) : 0 };
+
+    // 1. Upload imagen si hay una nueva
+    let imagenFinalUrl = extForm.imagen_url || null;
+    if (extImagen) {
+      const fileExt = extImagen.name.split('.').pop();
+      const fileName = `externos/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const { error: uploadErr } = await supabase.storage.from('servicios').upload(fileName, extImagen);
+      if (uploadErr) { alert('Error al subir imagen: ' + uploadErr.message); return; }
+      const { data: pubData } = supabase.storage.from('servicios').getPublicUrl(fileName);
+      imagenFinalUrl = pubData.publicUrl;
+    }
+
+    const payload = {
+      ...extForm,
+      imagen_url: imagenFinalUrl,
+      rubro_slug: RUBRO_SLUGS[extForm.rubro] || extForm.rubro.toLowerCase(),
+      precio_hora: extForm.precio_hora ? parseFloat(extForm.precio_hora) : null,
+      anos_experiencia: extForm.anos_experiencia ? parseInt(extForm.anos_experiencia) : 0
+    };
+
     if (editingExt) {
       await supabase.from('prestadores_externos').update(payload).eq('id', editingExt);
     } else {
       await supabase.from('prestadores_externos').insert(payload);
     }
     setShowExtForm(false); setEditingExt(null);
-    setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '' });
+    setExtImagen(null); setExtImagenPreview(null);
+    setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '', imagen_url: '' });
     fetchPrestExtList();
   };
 
@@ -819,19 +844,56 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => setSelectedConv(selectedConv?.id === c.id ? null : c)}><Eye size={12} />Detalle</button>
-                          <button className="adm-btn adm-btn-ghost" style={{ fontSize: '0.72rem' }} onClick={() => handleResetConv(c.id)}><RotateCcw size={12} />Resetear</button>
-                          <button className="adm-btn adm-btn-danger" style={{ fontSize: '0.72rem' }} onClick={() => handleBloquearCliente(c.id, c.nombre)}><UserX size={12} />Bloquear</button>
-                          {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none' }}><Phone size={12} />WA</a>}
+                          <button
+                            className="adm-btn adm-btn-ghost"
+                            style={{ fontSize: '0.72rem' }}
+                            title="Ver ficha completa del cliente y el estado de su conversación"
+                            onClick={() => setSelectedConv(selectedConv?.id === c.id ? null : c)}
+                          ><Eye size={12} />Detalle</button>
+                          <button
+                            className="adm-btn adm-btn-ghost"
+                            style={{ fontSize: '0.72rem' }}
+                            title="Resetear la conversación: vuelve al estado 'listo para pedir', útil si el cliente quedó atascado en un paso"
+                            onClick={() => handleResetConv(c.id)}
+                          ><RotateCcw size={12} />Resetear</button>
+                          <button
+                            className="adm-btn adm-btn-danger"
+                            style={{ fontSize: '0.72rem' }}
+                            title="Bloquear por deuda: el cliente no podrá hacer nuevas solicitudes hasta que regularice un pago pendiente"
+                            onClick={() => handleBloquearCliente(c.id, c.nombre)}
+                          ><UserX size={12} />Bloquear</button>
+                          {c.telefono && <a href={`https://wa.me/${c.telefono}`} target="_blank" rel="noopener noreferrer" className="adm-btn adm-btn-yellow" style={{ fontSize: '0.72rem', textDecoration: 'none' }} title="Abrir chat de WhatsApp con este cliente"><Phone size={12} />WA</a>}
                         </div>
-                        {selectedConv?.id === c.id && (
-                          <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '0.75rem', border: '1px solid var(--border)', fontSize: '0.75rem', color: 'var(--text2)' }}>
-                            <strong style={{ color: 'var(--v2)' }}>Datos temporales:</strong>
-                            <pre style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem', color: 'var(--text3)' }}>
-                              {JSON.stringify(c.datos_temporales || {}, null, 2)}
-                            </pre>
-                          </div>
-                        )}
+                        {selectedConv?.id === c.id && (() => {
+                          const dt = c.datos_temporales || {};
+                          const rows = [
+                            { label: 'Nombre', value: `${c.nombre || '—'} ${c.apellido || ''}`.trim() },
+                            { label: 'Teléfono', value: c.telefono || '—' },
+                            { label: 'Email', value: c.email || dt.email || '—' },
+                            { label: 'Domicilio', value: c.domicilio || dt.domicilio || '—' },
+                            { label: 'Paso actual', value: ESTADO_LABELS[c.paso_conversacion] || c.paso_conversacion || '—' },
+                            { label: 'Categoría en proceso', value: dt.categoria_detectada || '—' },
+                            { label: 'Descripción del problema', value: dt.descripcion_problema || '—' },
+                            { label: 'Prestador asignado', value: dt.prestador_nombre || '—' },
+                            { label: 'Fecha elegida', value: dt.fecha_seleccionada || '—' },
+                            { label: 'Monto reserva', value: dt.monto_reserva ? `$${dt.monto_reserva.toLocaleString('es-AR')}` : '—' },
+                            { label: 'Solicitud ID', value: dt.solicitud_activa_id || dt.solicitud_id ? (dt.solicitud_activa_id || dt.solicitud_id).slice(0, 12) + '…' : '—' },
+                            { label: 'Bloqueado por deuda', value: c.bloqueado_por_deuda ? '🔴 SÍ' : '🟢 No' },
+                          ];
+                          return (
+                            <div style={{ background: 'rgba(108,99,255,0.05)', borderRadius: 10, padding: '0.9rem 1rem', border: '1px solid var(--v-border)' }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--v2)', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>📋 FICHA DE CONVERSACIÓN</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1.5rem' }}>
+                                {rows.map(({ label, value }) => (
+                                  <div key={label} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '0.3rem' }}>
+                                    <div style={{ fontSize: '0.62rem', color: 'var(--text3)', fontWeight: 700, letterSpacing: '0.05em', marginBottom: '0.1rem' }}>{label.toUpperCase()}</div>
+                                    <div style={{ fontSize: '0.78rem', color: value === '—' ? 'var(--text3)' : 'var(--text)', fontWeight: value !== '—' ? 500 : 400 }}>{value}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -1253,8 +1315,63 @@ const AdminDashboard = () => {
       {/* ── MODAL: FORMULARIO PRESTADOR EXTERNO ── */}
       {showExtForm && (
         <div className="adm-modal-overlay" onClick={e => e.target === e.currentTarget && setShowExtForm(false)}>
-          <div className="adm-modal" style={{ maxWidth: 640 }}>
+          <div className="adm-modal" style={{ maxWidth: 680, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="adm-modal-title"><Globe size={18} color="#6c63ff" style={{ marginRight: 8 }} />{editingExt ? 'Editar' : 'Nuevo'} Prestador Externo</div>
+
+            {/* ── Foto del servicio ── */}
+            <div className="adm-form-group" style={{ marginBottom: '1.25rem' }}>
+              <label className="adm-label">Foto del servicio (portada)</label>
+              <input
+                ref={extImagenInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  setExtImagen(file);
+                  setExtImagenPreview(URL.createObjectURL(file));
+                }}
+              />
+              <div
+                onClick={() => extImagenInputRef.current?.click()}
+                style={{
+                  width: '100%', height: 160, borderRadius: 12,
+                  border: '2px dashed var(--v-border)',
+                  background: extImagenPreview || extForm.imagen_url
+                    ? `url(${extImagenPreview || extForm.imagen_url}) center/cover no-repeat`
+                    : 'rgba(108,99,255,0.05)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', transition: 'border-color 0.2s', position: 'relative', overflow: 'hidden'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--v)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--v-border)'}
+              >
+                {!(extImagenPreview || extForm.imagen_url) ? (
+                  <>
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🖼️</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--v2)', fontWeight: 600 }}>Click para subir foto</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text3)', marginTop: '0.2rem' }}>JPG, PNG, WebP — recomendado 800×500px</div>
+                  </>
+                ) : (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                    onMouseLeave={e => e.currentTarget.style.opacity = 0}>
+                    <span style={{ color: 'white', fontSize: '0.85rem', fontWeight: 600 }}>🔄 Cambiar foto</span>
+                  </div>
+                )}
+              </div>
+              {(extImagenPreview || extForm.imagen_url) && (
+                <button
+                  className="adm-btn adm-btn-danger"
+                  style={{ marginTop: '0.5rem', fontSize: '0.72rem' }}
+                  onClick={() => { setExtImagen(null); setExtImagenPreview(null); setExtForm(p => ({ ...p, imagen_url: '' })); }}
+                >
+                  <X size={12} /> Quitar foto
+                </button>
+              )}
+            </div>
+
             <div className="adm-form-grid">
               {[
                 { key: 'nombre', label: 'Nombre *', placeholder: 'Juan' },
@@ -1289,7 +1406,7 @@ const AdminDashboard = () => {
               <textarea className="adm-input" rows={3} value={extForm.descripcion} onChange={e => setExtForm(p => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción breve del servicio que ofrece..." style={{ resize: 'vertical' }} />
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
-              <button className="adm-btn adm-btn-ghost" onClick={() => setShowExtForm(false)}>Cancelar</button>
+              <button className="adm-btn adm-btn-ghost" onClick={() => { setShowExtForm(false); setExtImagen(null); setExtImagenPreview(null); }}>Cancelar</button>
               <button className="adm-btn adm-btn-primary" onClick={handleSaveExt}><CheckCircle size={14} />Guardar</button>
             </div>
           </div>
