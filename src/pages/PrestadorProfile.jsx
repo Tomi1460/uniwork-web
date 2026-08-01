@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Star, CheckCircle, X, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 export default function PrestadorProfile() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -135,6 +137,17 @@ export default function PrestadorProfile() {
                     estado: 'pendiente_contacto'
                 });
                 if (error) throw error;
+                
+                // Llamar al backend para enviar WhatsApp
+                try {
+                    await fetch(`${API_BASE}/api/admin/notificar-nueva-solicitud-externa`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ waId })
+                    });
+                } catch (notifyErr) {
+                    console.error("Error notificando por WA:", notifyErr);
+                }
             } else {
                 const { data, error } = await supabase.rpc('crear_solicitud_whatsapp', {
                     p_servicio_id: servicio.servicio_id,
