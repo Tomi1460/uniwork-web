@@ -16,6 +16,7 @@ import WhatsAppButton from './components/WhatsAppButton'
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardCliente = lazy(() => import('./pages/app/DashboardCliente'))
 const DashboardPrestador = lazy(() => import('./pages/app/DashboardPrestador'))
+const AdminDashboard = lazy(() => import('./pages/app/AdminDashboard'))
 const WhatsAppRedirectPage = lazy(() => import('./pages/WhatsAppRedirectPage'))
 const PrestadoresList = lazy(() => import('./pages/PrestadoresList'))
 const PrestadorProfile = lazy(() => import('./pages/PrestadorProfile'))
@@ -82,6 +83,20 @@ function App() {
 
             {/* App redirect */}
             <Route path="/app" element={<AppRedirect />} />
+
+            {/* Admin dashboard */}
+            <Route
+              path="/app/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={<Navigate to="/app/admin" replace />}
+            />
 
             {/* Client dashboard */}
             <Route
