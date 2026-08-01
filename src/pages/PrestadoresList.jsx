@@ -63,33 +63,6 @@ export default function PrestadoresList() {
         fetchAll();
     }, [categoria]);
 
-    const handleSolicitarExterno = async (externo) => {
-        setSolicitandoExterno(externo.id);
-        try {
-            let clienteData = null;
-            if (waId) {
-                const { data } = await supabase.from('clientes_whatsapp').select('*').eq('id', waId).single();
-                clienteData = data;
-            }
-
-            await supabase.from('solicitudes_externas').insert({
-                prestador_externo_id: externo.id,
-                cliente_id: waId || null,
-                nombre_cliente: clienteData ? `${clienteData.nombre || ''} ${clienteData.apellido || ''}`.trim() : null,
-                telefono_cliente: clienteData?.telefono || null,
-                categoria: externo.rubro,
-                estado: 'pendiente_contacto'
-            });
-
-            alert(`\u2705 \u00a1Solicitud registrada!\n\nNuestro equipo se pondr\u00e1 en contacto para coordinar con ${externo.nombre} ${externo.apellido || ''}.\n\nTe avisaremos por WhatsApp.`);
-        } catch (err) {
-            console.error('Error creando solicitud externa:', err);
-            alert('Ocurri\u00f3 un error. Intenta nuevamente.');
-        } finally {
-            setSolicitandoExterno(null);
-        }
-    };
-
     const allEmpty = servicios.length === 0 && externos.length === 0;
 
     return (
@@ -125,7 +98,6 @@ export default function PrestadoresList() {
                             const providerPhoto = srv.prestadores?.usuario?.foto_perfil_url;
                             return (
                                 <div key={srv.servicio_id} style={{ backgroundColor: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-                                    <span style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', background: '#6c63ff', color: 'white', fontSize: '0.6rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', zIndex: 1 }}>✓ CON APP</span>
                                     <div style={{ width: '100%', height: '160px', backgroundColor: '#e5e7eb', backgroundImage: srv.imagen_url ? `url(${srv.imagen_url})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
                                         {!srv.imagen_url && <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>Sin imagen</div>}
                                     </div>
@@ -156,38 +128,39 @@ export default function PrestadoresList() {
                         })}
 
                         {/* ── Prestadores SIN App (externos) ── */}
-                        {externos.map((ext) => (
-                            <div key={ext.id} style={{ backgroundColor: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-                                <span style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', background: '#f5c518', color: '#000', fontSize: '0.6rem', fontWeight: 800, padding: '0.2rem 0.5rem', borderRadius: '999px', zIndex: 1 }}>📋 GESTIONADO</span>
-                                <div style={{ width: '100%', height: '160px', background: 'linear-gradient(135deg,#1a1a2e,rgba(108,99,255,0.3))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <div style={{ width: '70px', height: '70px', borderRadius: '50%', background: 'linear-gradient(135deg,#6c63ff,#f5c518)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', fontWeight: 'bold' }}>
-                                        {(ext.nombre || '?')[0].toUpperCase()}
+                        {externos.map((ext) => {
+                            const providerName = `${ext.nombre} ${ext.apellido || ''}`.trim();
+                            return (
+                                <div key={ext.id} style={{ backgroundColor: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+                                    <div style={{ width: '100%', height: '160px', backgroundColor: '#e5e7eb', backgroundImage: ext.imagen_url ? `url(${ext.imagen_url})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                                        {!ext.imagen_url && <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.875rem' }}>Sin imagen</div>}
+                                    </div>
+                                    <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                            <div style={{ width: '3rem', height: '3rem', borderRadius: '9999px', background: 'linear-gradient(135deg,#6c63ff,#ff6584)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: 'bold', flexShrink: 0 }}>
+                                                {providerName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontWeight: 'bold', color: '#1f2937', fontSize: '1.1rem' }}>{providerName}</h3>
+                                                <p style={{ color: '#6c63ff', fontSize: '0.875rem', fontWeight: 500 }}>{ext.rubro}</p>
+                                            </div>
+                                        </div>
+                                        <p style={{ color: '#4b5563', fontSize: '0.9rem', flex: 1, marginBottom: '1rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            {ext.descripcion || 'Profesional verificado por el equipo de Uniwork.'}
+                                        </p>
+                                        <div style={{ marginTop: 'auto' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingTop: '1rem', borderTop: '1px solid #f3f4f6' }}>
+                                                <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>Valor por hora</span>
+                                                <span style={{ fontWeight: 'bold', color: '#111827' }}>${ext.precio_hora ? Number(ext.precio_hora).toLocaleString('es-AR') : 'A convenir'}</span>
+                                            </div>
+                                            <button onClick={() => navigate(`/servicio/${ext.id}?type=externo${waId ? `&wa_id=${waId}` : ''}`)} style={{ width: '100%', backgroundColor: '#25D366', color: 'white', border: 'none', padding: '0.75rem', borderRadius: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                                                Ver y Solicitar
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                    <div style={{ marginBottom: '1rem' }}>
-                                        <h3 style={{ fontWeight: 'bold', color: '#1f2937', fontSize: '1.1rem' }}>{ext.nombre} {ext.apellido || ''}</h3>
-                                        <p style={{ color: '#6c63ff', fontSize: '0.875rem', fontWeight: 500 }}>{ext.rubro}</p>
-                                    </div>
-                                    <p style={{ color: '#4b5563', fontSize: '0.9rem', flex: 1, marginBottom: '1rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                        {ext.descripcion || 'Profesional verificado por el equipo de Uniwork.'}
-                                    </p>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem', fontSize: '0.78rem', color: '#6b7280' }}>
-                                        {ext.precio_hora && <span>💰 ${Number(ext.precio_hora).toLocaleString('es-AR')}/h</span>}
-                                        {ext.anos_experiencia > 0 && <span>⭐ {ext.anos_experiencia} años exp.</span>}
-                                        {ext.zona && <span>📍 {ext.zona}</span>}
-                                    </div>
-                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid #f3f4f6' }}>
-                                        <button
-                                            onClick={() => handleSolicitarExterno(ext)}
-                                            disabled={solicitandoExterno === ext.id}
-                                            style={{ width: '100%', backgroundColor: solicitandoExterno === ext.id ? '#9ca3af' : '#f5c518', color: '#000', border: 'none', padding: '0.75rem', borderRadius: '0.75rem', fontWeight: 'bold', cursor: solicitandoExterno === ext.id ? 'not-allowed' : 'pointer' }}>
-                                            {solicitandoExterno === ext.id ? '⏳ Registrando...' : 'Solicitar Servicio'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                     </div>
                 )}

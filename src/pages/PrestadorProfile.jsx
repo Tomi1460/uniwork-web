@@ -8,6 +8,7 @@ export default function PrestadorProfile() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const waId = searchParams.get('wa_id');
+    const isExterno = searchParams.get('type') === 'externo';
     const [servicio, setServicio] = useState(null);
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState(null);
@@ -21,32 +22,63 @@ export default function PrestadorProfile() {
     useEffect(() => {
         const fetchService = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('servicios')
-                    .select(`
-                        servicio_id, 
-                        titulo, 
-                        descripcion, 
-                        precio_estimado,
-                        calificacion_promedio,
-                        ubicacion_servicio,
-                        fotos_urls,
-                        imagen_url,
-                        esta_activo,
-                        categorias!inner(nombre),
-                        prestador:prestadores (
-                            prestador_id,
-                            nombre_completo,
-                            calificacion_promedio,
-                            trabajos_realizados,
-                            usuario:usuarios(foto_perfil_url)
-                        )
-                    `)
-                    .eq('servicio_id', id)
-                    .single();
+                if (isExterno) {
+                    const { data, error } = await supabase
+                        .from('prestadores_externos')
+                        .select('*')
+                        .eq('id', id)
+                        .single();
 
-                if (error) throw error;
-                setServicio(data);
+                    if (error) throw error;
+                    
+                    // Map external provider to match `servicio` structure
+                    setServicio({
+                        servicio_id: data.id,
+                        titulo: data.rubro,
+                        descripcion: data.descripcion || 'Profesional verificado por el equipo de Uniwork.',
+                        precio_estimado: data.precio_hora,
+                        calificacion_promedio: 5.0, // Default for managed
+                        ubicacion_servicio: data.zona || '',
+                        fotos_urls: data.fotos_urls || [],
+                        imagen_url: data.imagen_url,
+                        esta_activo: data.activo,
+                        categorias: { nombre: data.rubro },
+                        prestador: {
+                            prestador_id: data.id,
+                            nombre_completo: `${data.nombre} ${data.apellido || ''}`.trim(),
+                            calificacion_promedio: 5.0,
+                            trabajos_realizados: data.anos_experiencia ? data.anos_experiencia * 10 : 25,
+                            usuario: { foto_perfil_url: null }
+                        }
+                    });
+                } else {
+                    const { data, error } = await supabase
+                        .from('servicios')
+                        .select(`
+                            servicio_id, 
+                            titulo, 
+                            descripcion, 
+                            precio_estimado,
+                            calificacion_promedio,
+                            ubicacion_servicio,
+                            fotos_urls,
+                            imagen_url,
+                            esta_activo,
+                            categorias!inner(nombre),
+                            prestador:prestadores (
+                                prestador_id,
+                                nombre_completo,
+                                calificacion_promedio,
+                                trabajos_realizados,
+                                usuario:usuarios(foto_perfil_url)
+                            )
+                        `)
+                        .eq('servicio_id', id)
+                        .single();
+
+                    if (error) throw error;
+                    setServicio(data);
+                }
             } catch (err) {
                 console.error("Error fetching service:", err);
                 setErrorMsg("No se pudo cargar el perfil del prestador.");
@@ -55,7 +87,7 @@ export default function PrestadorProfile() {
             }
         };
         fetchService();
-    }, [id]);
+    }, [id, isExterno]);
 
     if (loading) {
         return (
@@ -89,13 +121,29 @@ export default function PrestadorProfile() {
         }
         setIsSubmitting(true);
         try {
-            const { data, error } = await supabase.rpc('crear_solicitud_whatsapp', {
-                p_servicio_id: servicio.servicio_id,
-                p_prestador_id: servicio.prestador.prestador_id,
-                p_wa_id: waId,
-                p_metodo_pago: 'DIGITAL'
-            });
-            if (error) throw error;
+            if (isExterno) {
+                let clienteData = null;
+                const { data: cData } = await supabase.from('clientes_whatsapp').select('*').eq('id', waId).single();
+                clienteData = cData;
+
+                const { error } = await supabase.from('solicitudes_externas').insert({
+                    prestador_externo_id: servicio.prestador.prestador_id,
+                    cliente_id: waId,
+                    nombre_cliente: clienteData ? `${clienteData.nombre || ''} ${clienteData.apellido || ''}`.trim() : null,
+                    telefono_cliente: clienteData?.telefono || null,
+                    categoria: servicio.titulo,
+                    estado: 'pendiente_contacto'
+                });
+                if (error) throw error;
+            } else {
+                const { data, error } = await supabase.rpc('crear_solicitud_whatsapp', {
+                    p_servicio_id: servicio.servicio_id,
+                    p_prestador_id: servicio.prestador.prestador_id,
+                    p_wa_id: waId,
+                    p_metodo_pago: 'DIGITAL'
+                });
+                if (error) throw error;
+            }
             setRequestSuccess(true);
         } catch (err) {
             console.error("Error creating request:", err);

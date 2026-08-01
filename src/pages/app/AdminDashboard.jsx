@@ -449,7 +449,7 @@ const AdminDashboard = () => {
   const [extTab, setExtTab] = useState('list');
   const [prestExtList, setPrestExtList] = useState([]);
   const [loadingExt, setLoadingExt] = useState(false);
-  const [extForm, setExtForm] = useState({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '' });
+  const [extForm, setExtForm] = useState({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '', fotos_urls: [] });
   const [editingExt, setEditingExt] = useState(null);
   const [showExtForm, setShowExtForm] = useState(false);
   const [solicitudesExt, setSolicitudesExt] = useState([]);
@@ -461,6 +461,8 @@ const AdminDashboard = () => {
   const [extImagen, setExtImagen] = useState(null); // File object
   const [extImagenPreview, setExtImagenPreview] = useState(null); // URL preview
   const extImagenInputRef = useRef(null);
+  const [extGaleriaFiles, setExtGaleriaFiles] = useState([]);
+  const extGaleriaInputRef = useRef(null);
 
   // ── Pagos / Reportes (existing) ──
   const [pagosPendientes, setPagosPendientes] = useState([]);
@@ -639,10 +641,24 @@ const AdminDashboard = () => {
       const { data: pubData } = supabase.storage.from('servicios').getPublicUrl(fileName);
       imagenFinalUrl = pubData.publicUrl;
     }
+    // 2. Upload gallery images if any
+    let finalFotosUrls = extForm.fotos_urls ? [...extForm.fotos_urls] : [];
+    if (extGaleriaFiles.length > 0) {
+      for (const file of extGaleriaFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `externos_galeria/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+        const { error: uploadErr } = await supabase.storage.from('servicios').upload(fileName, file);
+        if (!uploadErr) {
+          const { data: pubData } = supabase.storage.from('servicios').getPublicUrl(fileName);
+          finalFotosUrls.push(pubData.publicUrl);
+        }
+      }
+    }
 
     const payload = {
       ...extForm,
       imagen_url: imagenFinalUrl,
+      fotos_urls: finalFotosUrls,
       rubro_slug: RUBRO_SLUGS[extForm.rubro] || extForm.rubro.toLowerCase(),
       precio_hora: extForm.precio_hora ? parseFloat(extForm.precio_hora) : null,
       anos_experiencia: extForm.anos_experiencia ? parseInt(extForm.anos_experiencia) : 0
@@ -655,7 +671,8 @@ const AdminDashboard = () => {
     }
     setShowExtForm(false); setEditingExt(null);
     setExtImagen(null); setExtImagenPreview(null);
-    setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '', imagen_url: '' });
+    setExtGaleriaFiles([]);
+    setExtForm({ nombre: '', apellido: '', rubro: 'Plomería', descripcion: '', precio_hora: '', telefono: '', email: '', zona: '', anos_experiencia: '', imagen_url: '', fotos_urls: [] });
     fetchPrestExtList();
   };
 
@@ -1084,7 +1101,7 @@ const AdminDashboard = () => {
                             <span className="adm-badge" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: '#9b8fff', marginTop: 4 }}>{p.rubro}</span>
                           </div>
                           <div style={{ display: 'flex', gap: '0.4rem' }}>
-                            <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem' }} onClick={() => { setEditingExt(p.id); setExtForm({ nombre: p.nombre, apellido: p.apellido || '', rubro: p.rubro, descripcion: p.descripcion || '', precio_hora: p.precio_hora || '', telefono: p.telefono || '', email: p.email || '', zona: p.zona || '', anos_experiencia: p.anos_experiencia || '' }); setShowExtForm(true); }}><Edit2 size={13} /></button>
+                            <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem' }} onClick={() => { setEditingExt(p.id); setExtForm({ nombre: p.nombre, apellido: p.apellido || '', rubro: p.rubro, descripcion: p.descripcion || '', precio_hora: p.precio_hora || '', telefono: p.telefono || '', email: p.email || '', zona: p.zona || '', anos_experiencia: p.anos_experiencia || '', imagen_url: p.imagen_url || '', fotos_urls: p.fotos_urls || [] }); setShowExtForm(true); }}><Edit2 size={13} /></button>
                             <button className="adm-btn adm-btn-ghost" style={{ padding: '0.3rem 0.6rem', color: p.activo ? 'var(--red)' : 'var(--green)' }} onClick={() => handleToggleExt(p.id, p.activo)}>{p.activo ? <X size={13} /> : <CheckCircle size={13} />}</button>
                           </div>
                         </div>
@@ -1413,6 +1430,39 @@ const AdminDashboard = () => {
                   <X size={12} /> Quitar foto
                 </button>
               )}
+            </div>
+
+            {/* ── Galería de fotos de trabajos ── */}
+            <div className="adm-form-group" style={{ marginBottom: '1.25rem' }}>
+              <label className="adm-label">Galería de trabajos ({extForm.fotos_urls?.length || 0} subidas, {extGaleriaFiles.length} pendientes)</label>
+              <input
+                ref={extGaleriaInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const files = Array.from(e.target.files);
+                  setExtGaleriaFiles(prev => [...prev, ...files]);
+                }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
+                {(extForm.fotos_urls || []).map((url, idx) => (
+                  <div key={'f-'+idx} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, background: `url(${url}) center/cover` }}>
+                    <button type="button" onClick={() => setExtForm(p => ({ ...p, fotos_urls: p.fotos_urls.filter((_, i) => i !== idx) }))} style={{ position: 'absolute', top: -5, right: -5, background: 'red', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>X</button>
+                  </div>
+                ))}
+                {extGaleriaFiles.map((file, idx) => (
+                  <div key={'p-'+idx} style={{ position: 'relative', width: 80, height: 80, borderRadius: 8, background: `url(${URL.createObjectURL(file)}) center/cover` }}>
+                    <button type="button" onClick={() => setExtGaleriaFiles(p => p.filter((_, i) => i !== idx))} style={{ position: 'absolute', top: -5, right: -5, background: 'red', color: 'white', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', fontSize: '0.7rem' }}>X</button>
+                    <span style={{ position: 'absolute', bottom: 2, right: 2, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '0.6rem', padding: '1px 3px', borderRadius: 4 }}>New</span>
+                  </div>
+                ))}
+                <div onClick={() => extGaleriaInputRef.current?.click()} style={{ width: 80, height: 80, borderRadius: 8, border: '2px dashed var(--v-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text3)' }}>
+                  <Plus size={20} />
+                  <span style={{ fontSize: '0.65rem', marginTop: 2 }}>Añadir</span>
+                </div>
+              </div>
             </div>
 
             <div className="adm-form-grid">
