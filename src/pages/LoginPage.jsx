@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './LoginPage.css'
+import appServiciosImg from '../assets/app_servicios.png'
+import appPrestadorImg from '../assets/app_prestador.png'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -103,8 +105,8 @@ export default function LoginPage() {
             Conecta con clientes, gestiona tus servicios y cobra de forma segura. Todo en un solo lugar.
           </p>
           <div className="login-page__screenshots">
-            <img src="/src/assets/app_servicios.png" alt="App servicios" className="login-page__ss login-page__ss--1" />
-            <img src="/src/assets/app_prestador.png" alt="App prestador" className="login-page__ss login-page__ss--2" />
+            <img src={appServiciosImg} alt="App servicios" className="login-page__ss login-page__ss--1" />
+            <img src={appPrestadorImg} alt="App prestador" className="login-page__ss login-page__ss--2" />
           </div>
         </div>
         <div className="login-page__left-orb1"></div>
@@ -129,10 +131,11 @@ export default function LoginPage() {
 
             {mode === 'signup' && (
               <>
-                <div className="login-page__input-group">
-                  <label htmlFor="fullName">Nombre completo</label>
+                <div className="login-page__field">
+                  <label htmlFor="fullName" className="login-page__label">Nombre completo</label>
                   <input
                     id="fullName"
+                    className="login-page__input"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -140,26 +143,31 @@ export default function LoginPage() {
                     required
                   />
                 </div>
-                <div className="login-page__input-group">
-                  <label>Tipo de cuenta</label>
-                  <div className="login-page__role-selector" style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                      <input type="radio" name="role" value="client" checked={role === 'client'} onChange={(e) => setRole(e.target.value)} />
-                      Quiero contratar
+                <div className="login-page__field">
+                  <label className="login-page__label">Tipo de cuenta</label>
+                  <div className="login-page__roles">
+                    <label className={`login-page__role ${role === 'client' ? 'active' : ''}`}>
+                      <input type="radio" name="role" value="client" checked={role === 'client'} onChange={(e) => setRole(e.target.value)} style={{ display: 'none' }} />
+                      <span className="login-page__role-icon">👤</span>
+                      <span className="login-page__role-name">Quiero contratar</span>
+                      <span className="login-page__role-desc">Busco servicios</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                      <input type="radio" name="role" value="provider" checked={role === 'provider'} onChange={(e) => setRole(e.target.value)} />
-                      Quiero trabajar
+                    <label className={`login-page__role ${role === 'provider' ? 'active' : ''}`}>
+                      <input type="radio" name="role" value="provider" checked={role === 'provider'} onChange={(e) => setRole(e.target.value)} style={{ display: 'none' }} />
+                      <span className="login-page__role-icon">💼</span>
+                      <span className="login-page__role-name">Quiero trabajar</span>
+                      <span className="login-page__role-desc">Ofrezco servicios</span>
                     </label>
                   </div>
                 </div>
               </>
             )}
 
-            <div className="login-page__input-group">
-              <label htmlFor="email">Correo electrónico</label>
+            <div className="login-page__field">
+              <label htmlFor="email" className="login-page__label">Correo electrónico</label>
               <input
                 id="email"
+                className="login-page__input"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -169,17 +177,18 @@ export default function LoginPage() {
             </div>
 
             {mode !== 'forgot' && (
-              <div className="login-page__input-group">
-                <div className="login-page__label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <label htmlFor="password">Contraseña</label>
+              <div className="login-page__field">
+                <div className="login-page__label-row">
+                  <label htmlFor="password" className="login-page__label">Contraseña</label>
                   {mode === 'login' && (
-                    <button type="button" className="login-page__forgot-btn" onClick={() => setMode('forgot')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}>
+                    <button type="button" className="login-page__forgot-link" onClick={() => setMode('forgot')}>
                       ¿Olvidaste tu contraseña?
                     </button>
                   )}
                 </div>
                 <input
                   id="password"
+                  className="login-page__input"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -189,16 +198,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', marginTop: '1rem' }}>
-              {loading ? 'Cargando...' : mode === 'login' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar enlace'}
+            <button type="submit" className="login-page__submit btn btn-primary" disabled={loading}>
+              {loading ? <span className="login-page__spinner"></span> : mode === 'login' ? 'Iniciar Sesión' : mode === 'signup' ? 'Crear Cuenta' : 'Enviar enlace'}
             </button>
           </form>
 
-          <div className="login-page__footer" style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+          <div className="login-page__switch">
             {mode === 'login' ? (
-              <p>¿No tienes cuenta? <button type="button" onClick={() => setMode('signup')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontWeight: 'bold' }}>Regístrate</button></p>
+              <p>¿No tienes cuenta? <button type="button" className="login-page__switch-btn" onClick={() => setMode('signup')}>Regístrate</button></p>
             ) : (
-              <p>¿Ya tienes cuenta? <button type="button" onClick={() => setMode('login')} style={{ background: 'none', border: 'none', color: 'var(--color-primary-light)', cursor: 'pointer', fontWeight: 'bold' }}>Inicia sesión</button></p>
+              <p>¿Ya tienes cuenta? <button type="button" className="login-page__switch-btn" onClick={() => setMode('login')}>Inicia sesión</button></p>
             )}
           </div>
         </div>
